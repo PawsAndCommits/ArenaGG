@@ -15,7 +15,6 @@ from schemas import (
     EquipoResponse,
     InscripcionCreate,
     InscripcionResponse,
-    MensajeResponse,
     MiPartidaResponse,
     ParticipantesResponse,
     PartidaProgramar,
@@ -124,17 +123,16 @@ def actualizar_torneo(
 
 @router.delete(
     "/torneos/{torneo_id}",
-    response_model=MensajeResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar un torneo (organizador o administrador)",
 )
 def eliminar_torneo(torneo_id: int, db: SesionDB, usuario: UsuarioActual):
     torneo = _torneo(db, torneo_id)
     verificar_gestion_torneo(torneo, usuario)
     sv.eliminar_torneo(db, torneo)
-    return {"mensaje": "Torneo eliminado."}
 
 
-@router.post(
+@router.patch(
     "/torneos/{torneo_id}/iniciar",
     response_model=TorneoResponse,
     summary="Generar la llave y comenzar el torneo (organizador o administrador)",
@@ -258,13 +256,12 @@ def inscribirse(
 
 @router.delete(
     "/torneos/{torneo_id}/inscribirse",
-    response_model=MensajeResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Cancelar la propia inscripción",
 )
 def cancelar_inscripcion(torneo_id: int, db: SesionDB, usuario: UsuarioActual):
     torneo = _torneo(db, torneo_id)
     sv.cancelar_inscripcion(db, torneo, usuario)
-    return {"mensaje": "Inscripción cancelada."}
 
 
 @router.get(
@@ -406,7 +403,7 @@ def listar_inscripciones(
 
 @router.delete(
     "/inscripciones/{inscripcion_id}",
-    response_model=MensajeResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar una inscripción (organizador o administrador)",
 )
 def eliminar_inscripcion(
@@ -417,4 +414,3 @@ def eliminar_inscripcion(
     )
     verificar_gestion_torneo(inscripcion.torneo, usuario)
     sv.eliminar_inscripcion(db, inscripcion)
-    return {"mensaje": "Inscripción eliminada."}

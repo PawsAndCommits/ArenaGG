@@ -134,7 +134,8 @@ def test_editar_y_eliminar_equipo(client, crear_usuario, autenticar, admin):
     assert borrado_ajeno.status_code == 403
 
     borrado = client.delete(f"/equipos/{equipo['id']}", headers=admin["headers"])
-    assert borrado.status_code == 200
+    assert borrado.status_code == 204
+    assert borrado.content == b""
     assert client.get(f"/equipos/{equipo['id']}").status_code == 404
 
 
@@ -215,7 +216,8 @@ def test_rechazo_salida_y_expulsion(client, crear_usuario, autenticar):
         f"/equipos/{equipo['id']}/miembros/{membresia['id']}",
         headers=capitan["headers"],
     )
-    assert expulsion.status_code == 200
+    assert expulsion.status_code == 204
+    assert expulsion.content == b""
     assert client.get(f"/equipos/{equipo['id']}").json()["miembros"] == 1
 
 
@@ -365,7 +367,7 @@ def test_equipo_en_torneo_y_bloqueo_de_roster(client, admin, crear_usuario, aute
     cancelada = client.delete(
         f"/torneos/{torneo['id']}/inscribirse", headers=a1["headers"]
     )
-    assert cancelada.status_code == 200
+    assert cancelada.status_code == 204
 
     invitacion_libre = client.post(
         f"/equipos/{equipo_a['id']}/invitar",
@@ -375,7 +377,7 @@ def test_equipo_en_torneo_y_bloqueo_de_roster(client, admin, crear_usuario, aute
     assert invitacion_libre.status_code == 201
 
     borrado = client.delete(f"/equipos/{equipo_a['id']}", headers=a1["headers"])
-    assert borrado.status_code == 200
+    assert borrado.status_code == 204
 
 
 def test_equipo_inexistente(client):

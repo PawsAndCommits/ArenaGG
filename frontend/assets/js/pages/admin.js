@@ -293,7 +293,7 @@ export async function render(contenedor) {
         if (!confirmar("Se va a generar la llave y cerrar las inscripciones.", "Iniciar torneo")) return;
         ejecutar(
           boton,
-          () => api.post(`/torneos/${boton.dataset.iniciar}/iniciar`),
+          () => api.patch(`/torneos/${boton.dataset.iniciar}/iniciar`),
           "Torneo iniciado."
         );
       });

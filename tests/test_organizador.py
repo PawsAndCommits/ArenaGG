@@ -18,7 +18,7 @@ def _preparar_torneo(client, organizador, jugadores, **cambios):
     torneo = crear_torneo(client, organizador["headers"], **cambios)
     for jugador in jugadores:
         inscribir(client, jugador["headers"], torneo["id"])
-    respuesta = client.post(
+    respuesta = client.patch(
         f"/torneos/{torneo['id']}/iniciar", headers=organizador["headers"]
     )
     assert respuesta.status_code == 200, respuesta.text
@@ -99,7 +99,7 @@ def test_solo_el_organizador_o_un_admin_gestiona(
         == 403
     )
     assert (
-        client.post(
+        client.patch(
             f"/torneos/{torneo['id']}/iniciar", headers=intruso["headers"]
         ).status_code
         == 403
@@ -255,7 +255,8 @@ def test_organizador_elimina_inscripcion_de_su_torneo(
     eliminada = client.delete(
         f"/inscripciones/{inscripcion['id']}", headers=jugador["headers"]
     )
-    assert eliminada.status_code == 200
+    assert eliminada.status_code == 204
+    assert eliminada.content == b""
 
     participantes = client.get(f"/torneos/{torneo['id']}/participantes").json()
     assert participantes["participantes"] == []

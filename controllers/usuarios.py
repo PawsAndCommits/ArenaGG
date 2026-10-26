@@ -1,5 +1,5 @@
 """Controllers de usuarios, historial y estadísticas."""
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 
 from controllers.helpers import obtener_o_404
@@ -7,7 +7,6 @@ from models import Usuario
 from schemas import (
     EstadisticasResponse,
     HistorialResponse,
-    MensajeResponse,
     UsuarioResponse,
     UsuarioUpdate,
 )
@@ -73,13 +72,12 @@ def actualizar_usuario(
 
 @router.delete(
     "/usuarios/{usuario_id}",
-    response_model=MensajeResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar un usuario (solo administradores)",
 )
 def eliminar_usuario(usuario_id: int, db: SesionDB, admin: AdminActual):
     usuario = obtener_o_404(db, Usuario, usuario_id, "Usuario no encontrado.")
     sv.eliminar_usuario(db, usuario, admin)
-    return {"mensaje": "Usuario eliminado."}
 
 
 @router.get(

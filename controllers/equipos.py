@@ -110,13 +110,12 @@ def actualizar_equipo(
 
 @router.delete(
     "/equipos/{equipo_id}",
-    response_model=MensajeResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar un equipo",
 )
 def eliminar_equipo(equipo_id: int, db: SesionDB, usuario: UsuarioActual):
     equipo = _equipo(db, equipo_id)
     eq.eliminar_equipo(db, equipo, usuario)
-    return {"mensaje": "Equipo eliminado."}
 
 
 @router.post(
@@ -161,7 +160,7 @@ def rechazar_invitacion(
 
 @router.delete(
     "/equipos/{equipo_id}/miembros/{membresia_id}",
-    response_model=MensajeResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Quitar a un jugador del equipo (capitán)",
 )
 def expulsar_miembro(
@@ -169,7 +168,6 @@ def expulsar_miembro(
 ):
     equipo = _equipo(db, equipo_id)
     eq.expulsar(db, equipo, membresia_id, usuario)
-    return {"mensaje": "Jugador quitado del equipo."}
 
 
 @router.post(

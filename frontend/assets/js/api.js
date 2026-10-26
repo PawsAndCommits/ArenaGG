@@ -100,6 +100,9 @@ export const api = {
   post(ruta, cuerpo, opciones = {}) {
     return solicitar(ruta, { ...opciones, metodo: "POST", cuerpo });
   },
+  patch(ruta, cuerpo, opciones = {}) {
+    return solicitar(ruta, { ...opciones, metodo: "PATCH", cuerpo });
+  },
   put(ruta, cuerpo, opciones = {}) {
     return solicitar(ruta, { ...opciones, metodo: "PUT", cuerpo });
   },

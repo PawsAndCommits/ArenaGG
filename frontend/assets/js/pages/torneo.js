@@ -389,7 +389,7 @@ export async function render(contenedor, { params, query, ruta }) {
 
     contenedor.querySelector("[data-iniciar]")?.addEventListener("click", (evento) => {
       if (!confirmar("Se generará la llave y el torneo comenzará.", "Iniciar torneo")) return;
-      ejecutar(evento.currentTarget, () => api.post(`/torneos/${torneo.id}/iniciar`), "Torneo iniciado.");
+      ejecutar(evento.currentTarget, () => api.patch(`/torneos/${torneo.id}/iniciar`), "Torneo iniciado.");
     });
 
     contenedor.querySelector("[data-reiniciar]")?.addEventListener("click", (evento) => {

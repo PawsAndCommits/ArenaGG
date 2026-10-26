@@ -17,7 +17,7 @@ def _inscribir_jugadores(client, torneo_id, jugadores):
 
 
 def _iniciar(client, admin, torneo_id):
-    respuesta = client.post(
+    respuesta = client.patch(
         f"/torneos/{torneo_id}/iniciar", headers=admin["headers"]
     )
     assert respuesta.status_code == 200, respuesta.text
@@ -257,7 +257,8 @@ def test_cancelar_inscripcion_antes_y_despues_de_iniciar(client, admin, crear_us
     cancelada = client.delete(
         f"/torneos/{torneo['id']}/inscribirse", headers=jugadores[0]["headers"]
     )
-    assert cancelada.status_code == 200
+    assert cancelada.status_code == 204
+    assert cancelada.content == b""
     assert client.get(f"/torneos/{torneo['id']}/participantes").json()["inscriptos"] == 0
 
     inscribir(client, jugadores[0]["headers"], torneo["id"])
@@ -275,7 +276,7 @@ def test_iniciar_exige_dos_participantes(client, admin, crear_usuario, autentica
     torneo = crear_torneo(client, admin["headers"], nombre="Copa solitaria")
     inscribir(client, jugador["headers"], torneo["id"])
 
-    respuesta = client.post(
+    respuesta = client.patch(
         f"/torneos/{torneo['id']}/iniciar", headers=admin["headers"]
     )
     assert respuesta.status_code == 409
@@ -286,7 +287,7 @@ def test_no_se_puede_inscribir_ni_reiniciar_sin_permiso(client, admin, jugador, 
     jugadores = crear_jugadores(crear_usuario, autenticar, 2, prefijo="orden")
     torneo = crear_torneo(client, admin["headers"], nombre="Copa de orden")
 
-    no_admin = client.post(
+    no_admin = client.patch(
         f"/torneos/{torneo['id']}/iniciar", headers=jugador["headers"]
     )
     assert no_admin.status_code == 403

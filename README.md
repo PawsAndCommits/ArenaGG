@@ -129,7 +129,7 @@ Las notificaciones se guardan en la base. La SPA consulta `GET /notificaciones/r
 
 ## API
 
-Todas las rutas devuelven JSON. Los errores de negocio tienen la forma `{"detail": "...", "errores": {...}}`.
+Todas las rutas devuelven JSON, excepto los `DELETE` exitosos, que responden `204 No Content` sin cuerpo. Los errores de negocio tienen la forma `{"detail": "...", "errores": {...}}`.
 
 ### Autenticación
 
@@ -161,7 +161,7 @@ Todas las rutas devuelven JSON. Los errores de negocio tienen la forma `{"detail
 | POST / DELETE | `/torneos/{torneo_id}/inscribirse` | Token |
 | GET | `/inscripciones` | Admin |
 | DELETE | `/inscripciones/{inscripcion_id}` | Organizador o admin |
-| POST | `/torneos/{torneo_id}/iniciar` | Organizador o admin |
+| PATCH | `/torneos/{torneo_id}/iniciar` | Organizador o admin |
 | POST | `/torneos/{torneo_id}/reiniciar` | Organizador o admin |
 | POST | `/torneos/{torneo_id}/finalizar` | Organizador o admin |
 | GET | `/torneos/{torneo_id}/partidas` | Público |
@@ -205,7 +205,7 @@ Todas las rutas devuelven JSON. Los errores de negocio tienen la forma `{"detail
 ## Estructura
 
 ```
-torneos_gamer/
+ArenaGG/
 ├── main.py                 # Punto de entrada para Uvicorn
 ├── app_factory.py          # Fábrica de la app, CORS, errores y SPA
 ├── config.py               # Configuración con pydantic-settings

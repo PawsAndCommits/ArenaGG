@@ -116,7 +116,8 @@ def test_baja_de_usuarios(client, admin, jugador, crear_usuario):
     eliminado = client.delete(
         f"/usuarios/{eliminable['id']}", headers=admin["headers"]
     )
-    assert eliminado.status_code == 200
+    assert eliminado.status_code == 204
+    assert eliminado.content == b""
     assert client.get(f"/usuarios/{eliminable['id']}").status_code == 404
 
     no_admin = client.delete(f"/usuarios/{jugador['id']}", headers=jugador["headers"])

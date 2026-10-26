@@ -214,8 +214,8 @@ def test_eliminar_torneo(client, admin, jugador):
     eliminado = client.delete(
         f"/torneos/{torneo['id']}", headers=admin["headers"]
     )
-    assert eliminado.status_code == 200
-    assert eliminado.json()["mensaje"] == "Torneo eliminado."
+    assert eliminado.status_code == 204
+    assert eliminado.content == b""
     assert client.get(f"/torneos/{torneo['id']}").status_code == 404
 
 
