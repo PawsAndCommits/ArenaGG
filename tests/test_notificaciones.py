@@ -1,139 +1,134 @@
-"""Pruebas de la bandeja de notificaciones."""
-import unittest
-
-from models import Notificacion, db
-from tests.base import BaseTestCase
+"""Pruebas de la bandeja de notificaciones y el polling."""
+from tests.ayudas import crear_torneo, inscribir
 
 
-class NotificacionesTest(BaseTestCase):
-    def setUp(self):
-        super().setUp()
-        self.usuario = self.crear_usuario("notificado")
-        self.otro = self.crear_usuario("ajeno")
-
-    def crear(self, usuario, titulo, url=None, leida=False, tipo="partida"):
-        notificacion = Notificacion(
-            usuario_id=usuario.id,
-            tipo=tipo,
-            titulo=titulo,
-            mensaje=f"Mensaje de {titulo}",
-            url=url,
-            leida=leida,
+def _generar_notificaciones(client, admin, jugador, cantidad=3):
+    for indice in range(1, cantidad + 1):
+        torneo = crear_torneo(
+            client,
+            admin["headers"],
+            nombre=f"Copa de avisos {indice}",
+            videojuego="Valorant",
         )
-        db.session.add(notificacion)
-        db.session.commit()
-        return notificacion
-
-    def test_requiere_sesion(self):
-        respuesta = self.client.get("/notificaciones/")
-
-        self.assertEqual(respuesta.status_code, 302)
-        self.assertIn("/login", respuesta.headers["Location"])
-
-    def test_bandeja_solo_muestra_las_propias(self):
-        propia = self.crear(self.usuario, "Tu partida está lista")
-        ajena = self.crear(self.otro, "Partida de otra persona")
-        self.iniciar_sesion(self.usuario)
-
-        respuesta = self.client.get("/notificaciones/")
-
-        self.assertEqual(respuesta.status_code, 200)
-        texto = respuesta.get_data(as_text=True)
-        self.assertIn(propia.titulo, texto)
-        self.assertNotIn(ajena.titulo, texto)
-
-    def test_filtro_sin_leer(self):
-        pendiente = self.crear(self.usuario, "Pendiente de leer")
-        self.crear(self.usuario, "Ya leída", leida=True)
-        self.iniciar_sesion(self.usuario)
-
-        respuesta = self.client.get("/notificaciones/?filtro=sin_leer")
-
-        self.assertEqual(respuesta.status_code, 200)
-        texto = respuesta.get_data(as_text=True)
-        self.assertIn(pendiente.titulo, texto)
-        self.assertEqual(texto.count("notif-fila"), 1)
-
-    def test_marcar_leida_por_json(self):
-        notificacion = self.crear(self.usuario, "Para marcar")
-        self.iniciar_sesion(self.usuario)
-
-        respuesta = self.client.post(
-            f"/notificaciones/{notificacion.id}/leer",
-            headers={"Accept": "application/json"},
-        )
-
-        self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.get_json(), {"ok": True, "sin_leer": 0})
-        db.session.refresh(notificacion)
-        self.assertTrue(notificacion.leida)
-
-    def test_abrir_redirige_a_una_url_interna(self):
-        notificacion = self.crear(self.usuario, "Ir al torneo", url="/torneos/7")
-        self.iniciar_sesion(self.usuario)
-
-        respuesta = self.client.post(f"/notificaciones/{notificacion.id}/abrir")
-
-        self.assertEqual(respuesta.status_code, 302)
-        self.assertEqual(respuesta.headers["Location"], "/torneos/7")
-
-    def test_abrir_no_redirige_fuera_del_sitio(self):
-        notificacion = self.crear(self.usuario, "Sitio externo", url="https://ejemplo.com")
-        self.iniciar_sesion(self.usuario)
-
-        respuesta = self.client.post(f"/notificaciones/{notificacion.id}/abrir")
-
-        self.assertEqual(respuesta.status_code, 302)
-        self.assertEqual(respuesta.headers["Location"], "/notificaciones/")
-
-    def test_no_se_puede_tocar_una_notificacion_ajena(self):
-        ajena = self.crear(self.otro, "No es tuya")
-        self.iniciar_sesion(self.usuario)
-
-        respuesta = self.client.post(
-            f"/notificaciones/{ajena.id}/leer",
-            headers={"Accept": "application/json"},
-        )
-
-        self.assertEqual(respuesta.status_code, 403)
-        self.assertEqual(respuesta.get_json(), {"error": "No autorizado."})
-        db.session.refresh(ajena)
-        self.assertFalse(ajena.leida)
-
-    def test_leer_todas(self):
-        self.crear(self.usuario, "Primera")
-        self.crear(self.usuario, "Segunda")
-        ajena = self.crear(self.otro, "Ajena")
-        self.iniciar_sesion(self.usuario)
-
-        respuesta = self.client.post(
-            "/notificaciones/leer-todas", headers={"Accept": "application/json"}
-        )
-
-        self.assertEqual(respuesta.status_code, 200)
-        self.assertEqual(respuesta.get_json(), {"ok": True, "sin_leer": 0})
-        self.assertEqual(
-            Notificacion.query.filter_by(usuario_id=self.usuario.id, leida=False).count(), 0
-        )
-        db.session.refresh(ajena)
-        self.assertFalse(ajena.leida)
-
-    def test_avisar_a_no_duplica_destinatarios(self):
-        import notificaciones as notif
-
-        creadas = notif.enviar_a(
-            [self.usuario.id, self.usuario.id, self.otro.id],
-            "equipo",
-            "Aviso",
-            "Mensaje",
-        )
-
-        self.assertEqual(len(creadas), 2)
-        self.assertEqual(
-            Notificacion.query.filter_by(titulo="Aviso").count(), 2
-        )
-        self.assertEqual(self.usuario.notificaciones[0].titulo, "Aviso")
+        inscribir(client, jugador["headers"], torneo["id"])
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_resumen_y_bandeja(client, admin, jugador):
+    _generar_notificaciones(client, admin, jugador)
+
+    resumen = client.get("/notificaciones/resumen", headers=jugador["headers"])
+    assert resumen.status_code == 200
+    assert resumen.json()["sin_leer"] == 3
+    assert len(resumen.json()["recientes"]) == 3
+    assert all(item["leida"] is False for item in resumen.json()["recientes"])
+    assert all(item["url"].startswith("#/torneos/") for item in resumen.json()["recientes"])
+
+    bandeja = client.get("/notificaciones", headers=jugador["headers"])
+    assert bandeja.status_code == 200
+    datos = bandeja.json()
+    assert datos["total"] == 3
+    assert datos["pagina"] == 1
+    assert datos["paginas"] == 1
+    assert datos["sin_leer"] == 3
+    assert len(datos["items"]) == 3
+    assert {item["tipo"] for item in datos["items"]} == {"inscripcion"}
+
+
+def test_paginacion_y_filtros(client, admin, jugador):
+    _generar_notificaciones(client, admin, jugador)
+
+    pagina_1 = client.get(
+        "/notificaciones",
+        params={"pagina": 1, "por_pagina": 2},
+        headers=jugador["headers"],
+    ).json()
+    assert pagina_1["paginas"] == 2
+    assert len(pagina_1["items"]) == 2
+
+    pagina_2 = client.get(
+        "/notificaciones",
+        params={"pagina": 2, "por_pagina": 2},
+        headers=jugador["headers"],
+    ).json()
+    assert len(pagina_2["items"]) == 1
+
+    sin_leer = client.get(
+        "/notificaciones", params={"filtro": "sin_leer"}, headers=jugador["headers"]
+    ).json()
+    assert sin_leer["total"] == 3
+
+    primero = pagina_1["items"][0]
+    leida = client.post(
+        f"/notificaciones/{primero['id']}/leer", headers=jugador["headers"]
+    )
+    assert leida.status_code == 200
+    assert leida.json()["sin_leer"] == 2
+    assert leida.json()["notificacion"]["leida"] is True
+
+    restantes = client.get(
+        "/notificaciones", params={"filtro": "sin_leer"}, headers=jugador["headers"]
+    ).json()
+    assert restantes["total"] == 2
+
+    repetida = client.post(
+        f"/notificaciones/{primero['id']}/leer", headers=jugador["headers"]
+    )
+    assert repetida.status_code == 200
+    assert repetida.json()["sin_leer"] == 2
+
+
+def test_marcar_todas_y_polling(client, admin, jugador):
+    _generar_notificaciones(client, admin, jugador, cantidad=2)
+
+    todas = client.post(
+        "/notificaciones/leer-todas", headers=jugador["headers"]
+    )
+    assert todas.status_code == 200
+    assert todas.json()["mensaje"] == "Notificaciones marcadas como leídas."
+
+    resumen = client.get(
+        "/notificaciones/resumen", headers=jugador["headers"]
+    ).json()
+    assert resumen["sin_leer"] == 0
+    assert resumen["recientes"] == []
+
+    bandeja = client.get("/notificaciones", headers=jugador["headers"]).json()
+    assert bandeja["total"] == 2
+    assert all(item["leida"] is True for item in bandeja["items"])
+
+
+def test_no_se_puede_leer_una_notificacion_ajena(client, admin, jugador, crear_usuario, autenticar):
+    _generar_notificaciones(client, admin, jugador, cantidad=1)
+    ajena = client.get("/notificaciones", headers=jugador["headers"]).json()["items"][0]
+
+    intruso = crear_usuario("intruso")
+    headers = autenticar(intruso["username"])
+    respuesta = client.post(
+        f"/notificaciones/{ajena['id']}/leer", headers=headers
+    )
+    assert respuesta.status_code == 403
+
+    inexistente = client.post("/notificaciones/999/leer", headers=headers)
+    assert inexistente.status_code == 404
+
+
+def test_notificaciones_requieren_sesion_y_parametros_validos(client):
+    assert client.get("/notificaciones").status_code == 401
+    assert client.get("/notificaciones/resumen").status_code == 401
+
+
+def test_parametros_de_consulta_invalidos(client, jugador):
+    filtro = client.get(
+        "/notificaciones", params={"filtro": "otro"}, headers=jugador["headers"]
+    )
+    assert filtro.status_code == 422
+
+    pagina = client.get(
+        "/notificaciones", params={"pagina": 0}, headers=jugador["headers"]
+    )
+    assert pagina.status_code == 422
+
+    tamano = client.get(
+        "/notificaciones", params={"por_pagina": 0}, headers=jugador["headers"]
+    )
+    assert tamano.status_code == 422

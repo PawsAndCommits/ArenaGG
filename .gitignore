@@ -2,7 +2,9 @@
 venv/
 __pycache__/
 *.pyc
-instance/
+.pytest_cache/
+.coverage
+htmlcov/
 .idea/
 .vscode/
 .env
