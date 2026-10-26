@@ -1,0 +1,1228 @@
+{
+  "info": {
+    "_postman_id": "a7d4f2c8-3b1e-4c6a-9f2d-8e5b1c7a4d30",
+    "name": "ArenaGG · FastAPI",
+    "description": "Colección de pruebas de la API de ArenaGG. Ejecutá primero Autenticación → Login: el token se guarda solo en la variable token y el resto de las solicitudes lo reutiliza. Cualquier usuario autenticado puede crear y organizar sus propios torneos; las solicitudes marcadas como admin requieren el usuario admin (admin / Admin1234).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "username",
+      "value": "admin"
+    },
+    {
+      "key": "password",
+      "value": "Admin1234"
+    },
+    {
+      "key": "usuario_id",
+      "value": "1"
+    },
+    {
+      "key": "torneo_id",
+      "value": "3"
+    },
+    {
+      "key": "equipo_id",
+      "value": "1"
+    },
+    {
+      "key": "partida_id",
+      "value": "1"
+    },
+    {
+      "key": "notificacion_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Sistema",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Estado del servicio."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Servicio disponible\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().status).to.eql(\"ok\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenAPI",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/openapi.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "openapi.json"
+              ]
+            },
+            "description": "Esquema OpenAPI. También se puede importar en Postman para generar todas las rutas."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Esquema disponible\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().info.title).to.eql(\"ArenaGG\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Autenticación",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "{{username}}",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login con application/x-www-form-urlencoded. Guarda el token y el id del usuario en las variables de la colección."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login correcto\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "pm.collectionVariables.set(\"token\", datos.access_token);",
+                  "pm.collectionVariables.set(\"usuario_id\", datos.usuario.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registro",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"postman{{$timestamp}}\",\n  \"email\": \"postman{{$timestamp}}@demo.com\",\n  \"password\": \"Postman1234\",\n  \"password_confirmacion\": \"Postman1234\",\n  \"juegos_favoritos\": \"Valorant, Rocket League\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/registro",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "registro"
+              ]
+            },
+            "description": "Crea un usuario nuevo y devuelve su token. El username y el email usan la variable dinámica {{$timestamp}}."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Usuario registrado\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "pm.collectionVariables.set(\"token\", datos.access_token);",
+                  "pm.collectionVariables.set(\"usuario_id\", datos.usuario.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/usuarios/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "usuarios",
+                "me"
+              ]
+            },
+            "description": "Perfil del usuario autenticado con el Bearer token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Token válido\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Usuarios",
+      "item": [
+        {
+          "name": "Listar usuarios (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/usuarios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "usuarios"
+              ]
+            },
+            "description": "Requiere rol admin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Listado correcto\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Historial de un usuario",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/usuarios/{{usuario_id}}/historial",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{usuario_id}}",
+                "historial"
+              ]
+            },
+            "description": "Historial público de torneos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Historial disponible\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Estadísticas",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/estadisticas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "estadisticas"
+              ]
+            },
+            "description": "Totales públicos de la plataforma."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estadísticas disponibles\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actualizar mi perfil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"juegos_favoritos\": [\"Valorant\", \"Rocket League\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/usuarios/{{usuario_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "usuarios",
+                "{{usuario_id}}"
+              ]
+            },
+            "description": "El usuario puede editar su propio perfil; el admin puede editar cualquiera."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Perfil actualizado\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Torneos",
+      "item": [
+        {
+          "name": "Listar torneos",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/torneos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos"
+              ]
+            },
+            "description": "Listado público. Guarda el primer torneo en torneo_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Listado correcto\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "if (datos.length) pm.collectionVariables.set(\"torneo_id\", datos[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis torneos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/torneos/mios",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "mios"
+              ]
+            },
+            "description": "Torneos organizados por el usuario autenticado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Listado correcto\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear torneo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Copa Postman {{$timestamp}}\",\n  \"descripcion\": \"Torneo de prueba creado desde Postman.\",\n  \"videojuego\": \"Valorant\",\n  \"fecha\": \"2026-12-31T20:00:00\",\n  \"cupo_maximo\": 8,\n  \"estado\": \"inscripciones_abiertas\",\n  \"modalidad\": \"individual\",\n  \"formato\": \"BO3\",\n  \"premio\": \"Prueba de API\",\n  \"reglas\": \"Reglas de prueba.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/torneos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos"
+              ]
+            },
+            "description": "Cualquier usuario autenticado puede crear un torneo y queda como organizador. Solo un admin puede enviar destacado en true. Guarda el torneo creado en torneo_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Torneo creado\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "pm.collectionVariables.set(\"torneo_id\", datos.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle de torneo",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}"
+              ]
+            },
+            "description": "Detalle público del torneo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Detalle disponible\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Participantes",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/participantes",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "participantes"
+              ]
+            },
+            "description": "Inscriptos confirmados del torneo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Participantes disponibles\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Posiciones",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/posiciones",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "posiciones"
+              ]
+            },
+            "description": "Tabla de posiciones del torneo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Posiciones disponibles\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Partidas",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/partidas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "partidas"
+              ]
+            },
+            "description": "Llave del torneo. Guarda la primera partida en partida_id si existe."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Partidas disponibles\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "if (datos.partidas && datos.partidas.length) pm.collectionVariables.set(\"partida_id\", datos.partidas[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Finalizar torneo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/finalizar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "finalizar"
+              ]
+            },
+            "description": "Requiere ser el organizador del torneo o un admin. El torneo debe estar en curso y no puede tener resultados pendientes ni en disputa."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sin error de servidor\", function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inscribirme",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/inscribirse",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "inscribirse"
+              ]
+            },
+            "description": "Inscripción individual. Si ya estás inscripto o el cupo está lleno devuelve 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Inscripción procesada\", function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([201, 400]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Equipos",
+      "item": [
+        {
+          "name": "Listar equipos",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/equipos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "equipos"
+              ]
+            },
+            "description": "Listado público. Guarda el primer equipo en equipo_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Listado correcto\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "if (datos.length) pm.collectionVariables.set(\"equipo_id\", datos[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear equipo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Equipo Postman {{$timestamp}}\",\n  \"tag\": \"PST\",\n  \"descripcion\": \"Equipo de prueba creado desde Postman.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/equipos",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "equipos"
+              ]
+            },
+            "description": "Crea un equipo y deja al usuario autenticado como capitán. Guarda el id en equipo_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Equipo creado\", function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "pm.collectionVariables.set(\"equipo_id\", datos.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Detalle de equipo",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/equipos/{{equipo_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "equipos",
+                "{{equipo_id}}"
+              ]
+            },
+            "description": "Roster, invitaciones e inscripciones del equipo."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Detalle disponible\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invitar jugador",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"ShadowFox\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/equipos/{{equipo_id}}/invitar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "equipos",
+                "{{equipo_id}}",
+                "invitar"
+              ]
+            },
+            "description": "Solo el capitán del equipo. Si el jugador ya está invitado o tiene equipo devuelve 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Invitación procesada\", function () {",
+                  "  pm.expect(pm.response.code).to.be.oneOf([201, 400]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Mis invitaciones",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/equipos/invitaciones",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "equipos",
+                "invitaciones"
+              ]
+            },
+            "description": "Invitaciones pendientes del usuario autenticado."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Invitaciones disponibles\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Torneos disponibles para el equipo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/equipos/{{equipo_id}}/torneos-disponibles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "equipos",
+                "{{equipo_id}}",
+                "torneos-disponibles"
+              ]
+            },
+            "description": "Torneos por equipos con inscripciones abiertas. Requiere ser capitán o admin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Torneos disponibles\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Partidas y resultados",
+      "item": [
+        {
+          "name": "Programar partida",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fecha_programada\": \"2026-12-31T20:00:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/partidas/{{partida_id}}/programar",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "partidas",
+                "{{partida_id}}",
+                "programar"
+              ]
+            },
+            "description": "Requiere ser el organizador del torneo o un admin, y una partida existente. Ajustá torneo_id y partida_id si hace falta."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sin error de servidor\", function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cargar resultado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"puntaje1\": 2,\n  \"puntaje2\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/partidas/{{partida_id}}/resultado",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "partidas",
+                "{{partida_id}}",
+                "resultado"
+              ]
+            },
+            "description": "Lo carga el capitán o el admin. El marcador debe respetar el formato (BO3: 2-0 o 2-1)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sin error de servidor\", function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resolver disputa",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"puntaje1\": 2,\n  \"puntaje2\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/torneos/{{torneo_id}}/partidas/{{partida_id}}/resolver",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "torneos",
+                "{{torneo_id}}",
+                "partidas",
+                "{{partida_id}}",
+                "resolver"
+              ]
+            },
+            "description": "Requiere ser el organizador del torneo o un admin, y que la partida tenga un resultado en disputa."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sin error de servidor\", function () {",
+                  "  pm.expect(pm.response.code).to.be.below(500);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Notificaciones",
+      "item": [
+        {
+          "name": "Bandeja",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notificaciones",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notificaciones"
+              ]
+            },
+            "description": "Notificaciones del usuario autenticado. Guarda la primera en notificacion_id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Bandeja disponible\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "const datos = pm.response.json();",
+                  "if (datos.items && datos.items.length) pm.collectionVariables.set(\"notificacion_id\", datos.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resumen para polling",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notificaciones/resumen",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notificaciones",
+                "resumen"
+              ]
+            },
+            "description": "Resumen que consulta la SPA cada 20 segundos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Resumen disponible\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Marcar todas como leídas",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/notificaciones/leer-todas",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "notificaciones",
+                "leer-todas"
+              ]
+            },
+            "description": "Marca como leídas todas las notificaciones del usuario."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Notificaciones actualizadas\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
