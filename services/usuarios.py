@@ -14,6 +14,10 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 ROLES = ("admin", "jugador")
 
 
+def listar_usuarios(db: Session) -> list[Usuario]:
+    return list(db.scalars(select(Usuario).order_by(Usuario.id)).all())
+
+
 def _str(datos, campo) -> str:
     valor = datos.get(campo)
     if valor is None:

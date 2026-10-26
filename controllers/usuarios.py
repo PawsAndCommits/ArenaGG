@@ -1,6 +1,5 @@
 """Controllers de usuarios, historial y estadísticas."""
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
 
 from controllers.helpers import obtener_o_404
 from models import Usuario
@@ -32,7 +31,7 @@ def mi_perfil(usuario: UsuarioActual):
     summary="Listar usuarios (solo administradores)",
 )
 def listar_usuarios(db: SesionDB, _admin: AdminActual):
-    usuarios = db.scalars(select(Usuario).order_by(Usuario.id)).all()
+    usuarios = sv.listar_usuarios(db)
     return [usuario.to_dict(privado=True) for usuario in usuarios]
 
 

@@ -1,6 +1,5 @@
 """Controllers de torneos, inscripciones, partidas y resultados."""
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import select
 
 from controllers.helpers import (
     obtener_o_404,
@@ -9,7 +8,7 @@ from controllers.helpers import (
     serializar_torneo,
     verificar_gestion_torneo,
 )
-from models import Equipo, Inscripcion, Partida, Torneo
+from models import Inscripcion, Partida, Torneo
 from schemas import (
     DisputaCreate,
     EquipoResponse,
@@ -395,10 +394,8 @@ def listar_inscripciones(
     _admin: AdminActual,
     torneo_id: int | None = Query(default=None),
 ):
-    consulta = select(Inscripcion).order_by(Inscripcion.creado_en.desc())
-    if torneo_id:
-        consulta = consulta.where(Inscripcion.torneo_id == torneo_id)
-    return [inscripcion.to_dict() for inscripcion in db.scalars(consulta).all()]
+    inscripciones = sv.listar_inscripciones(db, torneo_id)
+    return [inscripcion.to_dict() for inscripcion in inscripciones]
 
 
 @router.delete(

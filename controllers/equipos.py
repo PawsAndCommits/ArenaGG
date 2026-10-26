@@ -1,9 +1,8 @@
 """Controllers de equipos, roster e invitaciones."""
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
 
 from controllers.helpers import obtener_o_404, serializar_equipo, serializar_torneo
-from models import Equipo, EquipoMiembro, Torneo
+from models import Equipo, EquipoMiembro
 from schemas import (
     EquipoCreate,
     EquipoMiembroResponse,
@@ -39,7 +38,7 @@ def _membresia(db, equipo_id: int, membresia_id: int) -> EquipoMiembro:
     summary="Listar equipos",
 )
 def listar_equipos(db: SesionDB, usuario: UsuarioOpcional):
-    equipos = db.scalars(select(Equipo).order_by(Equipo.nombre)).all()
+    equipos = eq.listar_equipos(db)
     return [serializar_equipo(equipo, usuario) for equipo in equipos]
 
 
@@ -203,20 +202,5 @@ def torneos_disponibles(
     equipo_id: int, db: SesionDB, usuario: UsuarioActual
 ):
     equipo = _equipo(db, equipo_id)
-    if not equipo.es_capitan(usuario) and not usuario.es_admin:
-        raise HTTPException(
-            status_code=403, detail="Solo el capitán puede inscribir al equipo."
-        )
-    torneos = db.scalars(
-        select(Torneo)
-        .where(
-            Torneo.modalidad == "equipos",
-            Torneo.estado == "inscripciones_abiertas",
-        )
-        .order_by(Torneo.fecha)
-    ).all()
-    return [
-        serializar_torneo(torneo)
-        for torneo in torneos
-        if not eq.inscripcion_de(db, equipo, torneo)
-    ]
+    torneos = eq.torneos_disponibles(db, equipo, usuario)
+    return [serializar_torneo(torneo) for torneo in torneos]

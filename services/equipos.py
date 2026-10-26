@@ -3,7 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from database.base import ahora
-from models import Equipo, EquipoMiembro, Inscripcion, Usuario
+from models import Equipo, EquipoMiembro, Inscripcion, Torneo, Usuario
 from services import notificaciones as notif
 from services.errors import ErrorNegocio, ErrorValidacion
 
@@ -265,6 +265,24 @@ def validar_para_torneo(equipo: Equipo, torneo, usuario: Usuario) -> Equipo:
                 f"Estos jugadores ya están inscriptos con otro equipo: {nombres}.", 409
             )
     return equipo
+
+
+def listar_equipos(db: Session) -> list[Equipo]:
+    return list(db.scalars(select(Equipo).order_by(Equipo.nombre)).all())
+
+
+def torneos_disponibles(db: Session, equipo: Equipo, usuario: Usuario) -> list[Torneo]:
+    if not equipo.es_capitan(usuario) and not usuario.es_admin:
+        raise ErrorNegocio("Solo el capitán puede inscribir al equipo.", 403)
+    torneos = db.scalars(
+        select(Torneo)
+        .where(
+            Torneo.modalidad == "equipos",
+            Torneo.estado == "inscripciones_abiertas",
+        )
+        .order_by(Torneo.fecha)
+    ).all()
+    return [torneo for torneo in torneos if not inscripcion_de(db, equipo, torneo)]
 
 
 def invitaciones_de(db: Session, usuario: Usuario) -> list[EquipoMiembro]:
