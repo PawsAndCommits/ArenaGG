@@ -341,6 +341,13 @@ def cancelar_inscripcion(db: Session, torneo: Torneo, usuario: Usuario) -> None:
     db.commit()
 
 
+def listar_inscripciones(db: Session, torneo_id: int | None = None) -> list[Inscripcion]:
+    consulta = select(Inscripcion).order_by(Inscripcion.creado_en.desc())
+    if torneo_id:
+        consulta = consulta.where(Inscripcion.torneo_id == torneo_id)
+    return list(db.scalars(consulta).all())
+
+
 def eliminar_inscripcion(db: Session, inscripcion: Inscripcion) -> None:
     _verificar_puede_desinscribir(inscripcion.torneo)
     db.delete(inscripcion)
