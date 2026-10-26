@@ -1,0 +1,44 @@
+{# Componentes reutilizables de la interfaz #}
+
+{% macro badge_estado(estado, texto) -%}
+  {% set iconos = {'proximamente': 'hourglass-split', 'inscripciones_abiertas': 'door-open', 'en_curso': 'lightning-charge', 'finalizado': 'flag'} %}
+  <span class="estado estado-{{ estado }}"><i class="bi bi-{{ iconos.get(estado, 'circle') }}"></i> {{ texto }}</span>
+{%- endmacro %}
+
+{% macro tarjeta_torneo(torneo, grande=false) -%}
+<a href="{{ url_for('torneos.detalle', torneo_id=torneo.id) }}" class="tarjeta tarjeta-torneo {% if grande %}tarjeta-destacada{% endif %} h-100">
+  <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+    <span class="juego"><i class="bi bi-joystick"></i> {{ torneo.videojuego }}</span>
+    {{ badge_estado(torneo.estado, torneo.estado_texto) }}
+  </div>
+  <h3 class="tarjeta-titulo">{% if torneo.destacado %}<i class="bi bi-star-fill text-warning small"></i> {% endif %}{{ torneo.nombre }}</h3>
+  {% if grande and torneo.descripcion %}<p class="text-secundario small mb-3 recorte-2">{{ torneo.descripcion }}</p>{% endif %}
+  <div class="meta">
+    <span><i class="bi bi-calendar-event"></i> {{ torneo.fecha|fecha }}</span>
+    <span><i class="bi bi-{{ 'people' if torneo.es_por_equipos else 'person' }}"></i> {{ torneo.modalidad_texto }}</span>
+  </div>
+  <div class="cupo mt-3">
+    <div class="d-flex justify-content-between small mb-1">
+      <span>{{ torneo.inscriptos }}/{{ torneo.cupo_maximo }} inscriptos</span>
+      <span class="{{ 'text-danger' if torneo.esta_completo else 'text-info' }}">
+        {% if torneo.esta_completo %}Completo{% else %}{{ torneo.cupos_disponibles }} cupos libres{% endif %}
+      </span>
+    </div>
+    <div class="progress progress-fino"><div class="progress-bar barra-gradiente" style="width: {{ torneo.porcentaje_ocupado }}%"></div></div>
+  </div>
+</a>
+{%- endmacro %}
+
+{% macro campo(nombre, etiqueta, datos, errores, tipo='text', ayuda=None, requerido=false, extra='') -%}
+<div class="mb-3">
+  <label class="form-label" for="{{ nombre }}">{{ etiqueta }}{% if requerido %} <span class="text-danger">*</span>{% endif %}</label>
+  <input type="{{ tipo }}" class="form-control {% if errores.get(nombre) %}is-invalid{% endif %}" id="{{ nombre }}" name="{{ nombre }}"
+         {% if tipo != 'password' %}value="{{ datos.get(nombre, '') if datos else '' }}"{% endif %} {% if requerido %}required{% endif %} {{ extra|safe }}>
+  {% if errores.get(nombre) %}<div class="invalid-feedback">{{ errores.get(nombre) }}</div>{% endif %}
+  {% if ayuda %}<div class="form-text">{{ ayuda }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro csrf() -%}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+{%- endmacro %}

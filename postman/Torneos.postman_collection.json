@@ -1,0 +1,1349 @@
+{
+  "info": {
+    "name": "Torneos de Videojuegos - API REST",
+    "description": "Colección para probar la API de ArenaGG. Ejecutá las carpetas en orden (o todo con el Runner). Antes, configurá adminUser y adminPassword en las variables de la colección.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Autenticación",
+      "item": [
+        {
+          "name": "Registrar jugador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "const datos = pm.response.json();",
+                  "pm.test(\"Devuelve token y usuario\", function () { pm.expect(datos.token).to.be.a(\"string\"); pm.expect(datos.usuario.rol).to.eql(\"jugador\"); });",
+                  "pm.collectionVariables.set(\"jugadorToken\", datos.token);",
+                  "pm.collectionVariables.set(\"jugadorId\", datos.usuario.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/registro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "registro"
+              ]
+            },
+            "description": "Crea una cuenta de jugador y guarda su token en {{jugadorToken}}.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"jugador_{{$timestamp}}\",\n  \"email\": \"jugador{{$timestamp}}@mail.com\",\n  \"password\": \"Clave1234\",\n  \"juegos_favoritos\": [\n    \"Valorant\",\n    \"Rocket League\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Registro inválido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });",
+                  "pm.test(\"Detalla los campos con error\", function () { pm.expect(pm.response.json().detalles).to.have.keys(\"username\", \"email\", \"password\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/registro",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "registro"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"x\",\n  \"email\": \"correo-invalido\",\n  \"password\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login administrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "const datos = pm.response.json();",
+                  "pm.test(\"Es administrador\", function () { pm.expect(datos.usuario.rol).to.eql(\"admin\"); });",
+                  "pm.collectionVariables.set(\"adminToken\", datos.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Usa las variables adminUser / adminPassword (el admin se crea con `flask --app app crear-admin`).",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Login con contraseña incorrecta (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUser}}\",\n  \"password\": \"incorrecta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Mi perfil (token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye email (dato privado)\", function () { pm.expect(pm.response.json()).to.have.property(\"email\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Sin token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Usuarios",
+      "item": [
+        {
+          "name": "Listar usuarios (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Devuelve una lista\", function () { pm.expect(pm.response.json()).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Listar usuarios como jugador (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Obtener usuario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{jugadorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{jugadorId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Actualizar mi perfil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Juegos actualizados\", function () { pm.expect(pm.response.json().usuario.juegos_favoritos).to.include(\"Tekken 8\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{jugadorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{jugadorId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"juegos_favoritos\": \"Valorant, EA FC 25, Tekken 8\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Jugador intenta cambiar su rol (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{jugadorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{jugadorId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rol\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Torneos",
+      "item": [
+        {
+          "name": "Crear torneo (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "const datos = pm.response.json();",
+                  "pm.test(\"Torneo con inscripciones abiertas\", function () { pm.expect(datos.torneo.estado).to.eql(\"inscripciones_abiertas\"); });",
+                  "pm.collectionVariables.set(\"torneoId\", datos.torneo.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Copa ArenaGG {{$timestamp}}\",\n  \"descripcion\": \"Torneo de prueba creado desde Postman\",\n  \"videojuego\": \"Valorant\",\n  \"fecha\": \"2030-12-15T18:00\",\n  \"cupo_maximo\": 8,\n  \"modalidad\": \"individual\",\n  \"estado\": \"inscripciones_abiertas\",\n  \"destacado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Crear torneo sin token (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 401\", function () { pm.response.to.have.status(401); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Copa ArenaGG {{$timestamp}}\",\n  \"descripcion\": \"Torneo de prueba creado desde Postman\",\n  \"videojuego\": \"Valorant\",\n  \"fecha\": \"2030-12-15T18:00\",\n  \"cupo_maximo\": 8,\n  \"modalidad\": \"individual\",\n  \"estado\": \"inscripciones_abiertas\",\n  \"destacado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Crear torneo como jugador (403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 403\", function () { pm.response.to.have.status(403); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Copa ArenaGG {{$timestamp}}\",\n  \"descripcion\": \"Torneo de prueba creado desde Postman\",\n  \"videojuego\": \"Valorant\",\n  \"fecha\": \"2030-12-15T18:00\",\n  \"cupo_maximo\": 8,\n  \"modalidad\": \"individual\",\n  \"estado\": \"inscripciones_abiertas\",\n  \"destacado\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Crear torneo inválido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 400\", function () { pm.response.to.have.status(400); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });",
+                  "pm.test(\"Errores por campo\", function () { pm.expect(pm.response.json().detalles).to.include.keys(\"nombre\", \"fecha\", \"cupo_maximo\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"\",\n  \"videojuego\": \"Valorant\",\n  \"fecha\": \"no-es-fecha\",\n  \"cupo_maximo\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Listar torneos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Devuelve una lista\", function () { pm.expect(pm.response.json()).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Listar torneos con inscripciones abiertas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Todos con inscripciones abiertas\", function () { pm.response.json().forEach(function (t) { pm.expect(t.estado).to.eql(\"inscripciones_abiertas\"); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos?estado=inscripciones_abiertas&videojuego=Valorant",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos"
+              ],
+              "query": [
+                {
+                  "key": "estado",
+                  "value": "inscripciones_abiertas"
+                },
+                {
+                  "key": "videojuego",
+                  "value": "Valorant"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Obtener torneo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Id correcto\", function () { pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get(\"torneoId\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Actualizar torneo (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Cupo actualizado\", function () { pm.expect(pm.response.json().torneo.cupo_maximo).to.eql(16); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descripcion\": \"Descripción actualizada\",\n  \"cupo_maximo\": 16\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Torneo inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 404\", function () { pm.response.to.have.status(404); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "999999"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Inscripciones",
+      "item": [
+        {
+          "name": "Inscribirse (jugador)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Inscripción creada\", function () { pm.expect(pm.response.json().inscripcion).to.have.property(\"id\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}/inscribirse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}",
+                "inscribirse"
+              ]
+            },
+            "description": "Para torneos por equipos enviar: {\"nombre_equipo\": \"Lobos\", \"integrantes\": \"Ana, Beto\"}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inscribirse dos veces (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 409\", function () { pm.response.to.have.status(409); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "pm.test(\"Incluye mensaje de error\", function () { pm.expect(pm.response.json()).to.have.property(\"error\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}/inscribirse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}",
+                "inscribirse"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Cancelar inscripción",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}/inscribirse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}",
+                "inscribirse"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Volver a inscribirse",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}/inscribirse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}",
+                "inscribirse"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jugadorToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Inscribir al administrador (segundo participante)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}/inscribirse",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}",
+                "inscribirse"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Participantes del torneo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });",
+                  "const datos = pm.response.json();",
+                  "pm.test(\"Dos inscriptos y cupos controlados\", function () { pm.expect(datos.inscriptos).to.eql(2); pm.expect(datos.cupos_disponibles).to.eql(datos.cupo_maximo - 2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}/participantes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}",
+                "participantes"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Listar inscripciones (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/inscripciones?torneo_id={{torneoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "inscripciones"
+              ],
+              "query": [
+                {
+                  "key": "torneo_id",
+                  "value": "{{torneoId}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Limpieza (opcional)",
+      "item": [
+        {
+          "name": "Eliminar torneo (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/torneos/{{torneoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "torneos",
+                "{{torneoId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Eliminar jugador de prueba (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Código HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Respuesta JSON\", function () { pm.response.to.be.json; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{jugadorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{jugadorId}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000"
+    },
+    {
+      "key": "adminUser",
+      "value": "admin"
+    },
+    {
+      "key": "adminPassword",
+      "value": "CAMBIAR_POR_TU_CLAVE"
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "jugadorToken",
+      "value": ""
+    },
+    {
+      "key": "jugadorId",
+      "value": ""
+    },
+    {
+      "key": "torneoId",
+      "value": ""
+    }
+  ]
+}

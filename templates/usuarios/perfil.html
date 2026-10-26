@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, campo, badge_estado %}
+{% block titulo %}{{ usuario.username }}{% endblock %}
+{% block contenido %}
+{% set es_propio = current_user.is_authenticated and current_user.id == usuario.id %}
+<div class="container">
+  <div class="tarjeta perfil-cabecera mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+      {% if usuario.steam_avatar_full %}
+      <img src="{{ usuario.steam_avatar_full }}" alt="Avatar Steam" class="rounded-circle" style="width:96px;height:96px;border:2px solid #66c0f4">
+      {% else %}
+      <span class="avatar avatar-xl">{{ usuario.username[0]|upper }}</span>
+      {% endif %}
+      <div class="flex-grow-1">
+        <h1 class="h2 mb-1">{{ usuario.username }}
+          <span class="badge {{ 'text-bg-violeta' if usuario.es_admin else 'text-bg-azul' }} align-middle fs-6">{{ 'Administrador' if usuario.es_admin else 'Jugador' }}</span>
+          {% if usuario.steam_id %}<span class="badge text-bg-info align-middle fs-6"><i class="bi bi-steam"></i> Steam vinculado</span>{% endif %}
+        </h1>
+        {% if es_propio and usuario.email %}<div class="text-secundario"><i class="bi bi-envelope"></i> {{ usuario.email }}</div>{% endif %}
+        {% if usuario.steam_profile_url %}<div class="text-secundario"><a href="{{ usuario.steam_profile_url }}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right"></i> Perfil de Steam</a></div>{% endif %}
+        <div class="mt-2 d-flex flex-wrap gap-1">
+          {% for juego in usuario.lista_juegos %}<span class="chip chip-sm"><i class="bi bi-joystick"></i> {{ juego }}</span>{% else %}<span class="text-secundario small">Sin videojuegos favoritos cargados.</span>{% endfor %}
+        </div>
+      </div>
+      <div class="text-center">
+        <div class="cifra-valor text-info">{{ historial|length }}</div><div class="cifra-texto">Torneos inscriptos</div>
+      </div>
+    </div>
+    {% if es_propio and not usuario.steam_id %}
+    <div class="mt-3">
+      <a class="btn btn-sm" style="background:#171a21;color:#fff;border:1px solid #2a475e" href="{{ url_for('usuarios.steam_login') }}"><i class="bi bi-steam"></i> Vincular cuenta de Steam</a>
+      <span class="small text-secundario ms-2">Vinculá Steam para ver estadísticas de CS2.</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if usuario.steam_id and cs2_stats %}
+  <div class="tarjeta mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="h5 mb-0"><i class="bi bi-bar-chart-line"></i> Estadísticas CS2</h2>
+      {% if cs2_playtime %}<span class="text-secundario small"><i class="bi bi-clock"></i> {{ cs2_playtime.hours }} hs jugadas</span>{% endif %}
+    </div>
+    <div class="row g-3">
+      <div class="col-6 col-md-3">
+        <div class="text-center p-2 rounded" style="background:rgba(102,192,244,.08)">
+          <div class="h4 mb-0">{{ cs2_stats.kills }}</div>
+          <div class="small text-secundario">Kills</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-center p-2 rounded" style="background:rgba(102,192,244,.08)">
+          <div class="h4 mb-0">{{ cs2_stats.deaths }}</div>
+          <div class="small text-secundario">Deaths</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-center p-2 rounded" style="background:rgba(40,167,69,.12)">
+          <div class="h4 mb-0">{{ cs2_stats.kd }}</div>
+          <div class="small text-secundario">K/D Ratio</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-center p-2 rounded" style="background:rgba(255,193,7,.12)">
+          <div class="h4 mb-0">{{ cs2_stats.headshot_percentage }}%</div>
+          <div class="small text-secundario">Headshot %</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-center p-2 rounded" style="background:rgba(13,110,253,.12)">
+          <div class="h4 mb-0">{{ cs2_stats.wins }}</div>
+          <div class="small text-secundario">Victorias</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-center p-2 rounded" style="background:rgba(108,117,125,.12)">
+          <div class="h4 mb-0">{{ cs2_stats.rounds_won }}</div>
+          <div class="small text-secundario">Rounds Ganados</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% elif usuario.steam_id and not cs2_stats %}
+  <div class="alert alert-info">No se pudieron cargar las estadísticas de CS2. Verificá que la cuenta tenga el perfil público o configurá `STEAM_API_KEY`.</div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="{{ 'col-lg-7' if es_propio else 'col-12' }}">
+      <h2 class="h4 mb-3"><i class="bi bi-clock-history"></i> Torneos en los que participa</h2>
+      {% if historial %}
+      <div class="tarjeta p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table tabla-gamer align-middle mb-0">
+            <thead><tr><th>Torneo</th><th class="d-none d-sm-table-cell">Fecha</th><th>Estado</th></tr></thead>
+            <tbody>
+              {% for insc in historial %}
+              <tr>
+                <td><a href="{{ url_for('torneos.detalle', torneo_id=insc.torneo.id) }}" class="fw-semibold">{{ insc.torneo.nombre }}</a>
+                  <div class="small text-secundario">{{ insc.torneo.videojuego }}{% if insc.nombre_equipo %} · {{ insc.nombre_equipo }}{% endif %}</div></td>
+                <td class="d-none d-sm-table-cell small">{{ insc.torneo.fecha|fecha('%d/%m/%Y') }}</td>
+                <td>{{ badge_estado(insc.torneo.estado, insc.torneo.estado_texto) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% else %}
+      <div class="vacio"><i class="bi bi-joystick"></i><p>{{ 'Todavía no te inscribiste en ningún torneo.' if es_propio else 'Este jugador todavía no participó en torneos.' }}</p>
+        {% if es_propio %}<a class="btn btn-gradiente btn-sm" href="{{ url_for('torneos.lista', estado='inscripciones_abiertas') }}">Buscar torneos</a>{% endif %}</div>
+      {% endif %}
+    </div>
+
+    {% if es_propio %}
+    <div class="col-lg-5">
+      <div class="tarjeta mb-4">
+        <h2 class="h5 mb-3"><i class="bi bi-person-gear"></i> Editar datos personales</h2>
+        {% set datos_form = request.form if request.method == 'POST' and request.path == url_for('usuarios.perfil') else {'username': usuario.username, 'email': usuario.email, 'juegos_favoritos': usuario.juegos_favoritos} %}
+        <form method="post" action="{{ url_for('usuarios.perfil') }}" novalidate>
+          {{ csrf() }}
+          {{ campo('username', 'Nombre de usuario', datos_form, errores, requerido=true, extra='maxlength="30"') }}
+          {{ campo('email', 'Correo electrónico', datos_form, errores, tipo='email', requerido=true) }}
+          {{ campo('juegos_favoritos', 'Videojuegos favoritos', datos_form, errores, ayuda='Separados por comas (máximo 10).') }}
+          <button class="btn btn-gradiente w-100" type="submit"><i class="bi bi-save"></i> Guardar cambios</button>
+        </form>
+      </div>
+      <div class="tarjeta">
+        <h2 class="h5 mb-3"><i class="bi bi-key"></i> Cambiar contraseña</h2>
+        <form method="post" action="{{ url_for('usuarios.cambiar_password') }}" novalidate>
+          {{ csrf() }}
+          {{ campo('password_actual', 'Contraseña actual', {}, errores, tipo='password', requerido=true, extra='autocomplete="current-password"') }}
+          {{ campo('password', 'Nueva contraseña', {}, errores, tipo='password', requerido=true, extra='autocomplete="new-password"') }}
+          {{ campo('password_confirmacion', 'Repetir nueva contraseña', {}, errores, tipo='password', requerido=true, extra='autocomplete="new-password"') }}
+          <button class="btn btn-outline-light w-100" type="submit">Actualizar contraseña</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

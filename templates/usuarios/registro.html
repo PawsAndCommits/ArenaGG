@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, campo %}
+{% block titulo %}Crear cuenta{% endblock %}
+{% block contenido %}
+<div class="container">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <div class="tarjeta tarjeta-form">
+        <div class="text-center mb-4">
+          <span class="marca-icono marca-icono-lg"><i class="bi bi-person-plus"></i></span>
+          <h1 class="h3 mt-3">Crear cuenta</h1>
+          <p class="text-secundario">Registrate como jugador y empezá a competir</p>
+        </div>
+        <form method="post" novalidate>
+          {{ csrf() }}
+          {{ campo('username', 'Nombre de usuario', datos, errores, requerido=true, ayuda='Entre 3 y 30 caracteres: letras, números, punto, guion o guion bajo.', extra='autocomplete="username" maxlength="30"') }}
+          {{ campo('email', 'Correo electrónico', datos, errores, tipo='email', requerido=true, extra='autocomplete="email"') }}
+          <div class="row">
+            <div class="col-sm-6">{{ campo('password', 'Contraseña', datos, errores, tipo='password', requerido=true, extra='autocomplete="new-password" minlength="8"') }}</div>
+            <div class="col-sm-6">{{ campo('password_confirmacion', 'Repetir contraseña', datos, errores, tipo='password', requerido=true, extra='autocomplete="new-password"') }}</div>
+          </div>
+          <div class="form-text mt-n2 mb-3">Mínimo 8 caracteres, con letras y números.</div>
+          {{ campo('juegos_favoritos', 'Videojuegos favoritos', datos, errores, ayuda='Separados por comas. Ej: Valorant, EA FC 25, Rocket League', extra='maxlength="255"') }}
+          <button class="btn btn-gradiente w-100 btn-lg" type="submit">Crear cuenta</button>
+        </form>
+        <p class="text-center mt-4 mb-0 text-secundario">¿Ya tenés cuenta? <a href="{{ url_for('usuarios.login') }}">Iniciá sesión</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
