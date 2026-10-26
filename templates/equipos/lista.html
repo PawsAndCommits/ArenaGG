@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, escudo %}
+{% block titulo %}Equipos{% endblock %}
+{% block contenido %}
+<div class="container">
+  <div class="cabecera-pagina d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3">
+    <div>
+      <h1><i class="bi bi-people"></i> Equipos</h1>
+      <p class="text-secundario mb-0">Armá tu roster, invitá jugadores y competí en torneos por equipos.</p>
+    </div>
+    {% if current_user.is_authenticated %}
+    <a href="{{ url_for('equipos.nuevo') }}" class="btn btn-rojo"><i class="bi bi-plus-lg"></i> Crear equipo</a>
+    {% endif %}
+  </div>
+
+  {% if invitaciones %}
+  <div class="tarjeta mb-4" style="border-color: rgba(225, 29, 46, 0.4)">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h2 class="h5 mb-0"><i class="bi bi-envelope-paper"></i> Invitaciones pendientes <span class="badge text-bg-rojo">{{ invitaciones|length }}</span></h2>
+      <a href="{{ url_for('equipos.invitaciones') }}" class="enlace-rojo small">Ver todas</a>
+    </div>
+    <div class="d-flex flex-column gap-3">
+      {% for membresia in invitaciones %}
+      <div class="d-flex flex-wrap align-items-center gap-3">
+        {{ escudo(membresia.equipo) }}
+        <div class="flex-grow-1">
+          <a class="fw-semibold" href="{{ url_for('equipos.detalle', equipo_id=membresia.equipo.id) }}">{{ membresia.equipo.nombre }}</a>
+          <div class="small text-secundario">Te invitó {{ membresia.invitado_por.username if membresia.invitado_por else 'el capitán' }} · {{ membresia.equipo.miembros_activos|length }} jugadores</div>
+        </div>
+        <div class="d-flex gap-2">
+          <form method="post" action="{{ url_for('equipos.responder', equipo_id=membresia.equipo_id, membresia_id=membresia.id, accion='aceptar') }}">
+            {{ csrf() }}
+            <button class="btn btn-sm btn-rojo" type="submit">Aceptar</button>
+          </form>
+          <form method="post" action="{{ url_for('equipos.responder', equipo_id=membresia.equipo_id, membresia_id=membresia.id, accion='rechazar') }}">
+            {{ csrf() }}
+            <button class="btn btn-sm btn-fantasma" type="submit">Rechazar</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_user.is_authenticated %}
+  <section class="seccion">
+    <div class="seccion-cabecera">
+      <h2><i class="bi bi-shield-shaded"></i> Mis equipos</h2>
+    </div>
+    {% if mis_equipos %}
+    <div class="equipo-grid">
+      {% for equipo in mis_equipos %}
+      <a class="tarjeta equipo-mini" href="{{ url_for('equipos.detalle', equipo_id=equipo.id) }}">
+        {{ escudo(equipo, 'escudo-lg') }}
+        <div class="flex-grow-1 min-w-0">
+          <div class="equipo-mini-nombre">{{ equipo.nombre }}</div>
+          <div class="small text-secundario">{% if equipo.tag %}[{{ equipo.tag }}] · {% endif %}{{ equipo.miembros_activos|length }} jugadores</div>
+          <div class="small mt-1">
+            {% if equipo.capitan_id == current_user.id %}
+            <span class="rol-etiqueta capitan">Capitán</span>
+            {% if equipo.invitaciones_pendientes %}<span class="rol-etiqueta">{{ equipo.invitaciones_pendientes|length }} invitación(es)</span>{% endif %}
+            {% else %}
+            <span class="rol-etiqueta">Jugador</span>
+            {% endif %}
+          </div>
+        </div>
+        <i class="bi bi-chevron-right text-secundario"></i>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="vacio">
+      <i class="bi bi-people"></i>
+      <p>Todavía no tenés equipo.</p>
+      <a class="btn btn-sm btn-rojo" href="{{ url_for('equipos.nuevo') }}">Crear mi equipo</a>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="seccion">
+    <div class="seccion-cabecera">
+      <h2><i class="bi bi-collection"></i> Todos los equipos</h2>
+      <span class="small text-secundario">{{ equipos|length }} en total</span>
+    </div>
+    {% if equipos %}
+    <div class="row g-3">
+      {% for equipo in equipos %}
+      <div class="col-md-6 col-lg-4">
+        <a class="tarjeta h-100 d-block" href="{{ url_for('equipos.detalle', equipo_id=equipo.id) }}">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            {{ escudo(equipo) }}
+            <div class="min-w-0">
+              <div class="equipo-mini-nombre">{{ equipo.nombre }}</div>
+              <div class="small text-secundario">{% if equipo.tag %}[{{ equipo.tag }}] · {% endif %}Capitán: {{ equipo.capitan.username if equipo.capitan else 'Sin asignar' }}</div>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <span class="chip chip-sm"><i class="bi bi-person"></i> {{ equipo.miembros_activos|length }} jugadores</span>
+            {% if equipo.inscripciones %}<span class="chip chip-sm"><i class="bi bi-trophy"></i> {{ equipo.inscripciones|length }} torneo(s)</span>{% endif %}
+          </div>
+          {% if equipo.descripcion %}<p class="small text-secundario mb-0 recorte-2">{{ equipo.descripcion }}</p>{% endif %}
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="vacio"><i class="bi bi-shield"></i><p>Todavía no hay equipos creados.</p></div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -6,33 +6,36 @@
   <div class="container">
     <div class="row align-items-center g-4">
       <div class="col-lg-7">
-        <span class="chip mb-3"><i class="bi bi-broadcast"></i> Elegí tu juego · Inscribite · Competí</span>
-        <h1 class="hero-titulo">Tu arena de <span class="text-gradiente">torneos gamer</span></h1>
-        <p class="hero-texto">Inscribite en torneos individuales o por equipos de tus videojuegos favoritos y competí contra otros jugadores.</p>
+        <span class="chip mb-3"><i class="bi bi-broadcast"></i> Torneos, equipos y resultados en un solo lugar</span>
+        <h1 class="hero-titulo">Jugá en serio.<br><span class="text-gradiente">Ganá en la arena.</span></h1>
+        <p class="hero-texto">Creá tu equipo, armá el roster y competí en torneos individuales o por equipos. Resultados confirmados por los capitanes y llaves que se actualizan solas.</p>
         <div class="d-flex flex-wrap gap-2 mt-4">
-          <a href="{{ url_for('torneos.lista', estado='inscripciones_abiertas') }}" class="btn btn-lg btn-gradiente"><i class="bi bi-door-open"></i> Ver inscripciones abiertas</a>
-          {% if not current_user.is_authenticated %}
-          <a href="{{ url_for('usuarios.registro') }}" class="btn btn-lg btn-outline-light">Crear cuenta</a>
-          <a href="{{ url_for('usuarios.login') }}" class="btn btn-lg btn-link text-light">Iniciar sesión</a>
+          <a href="{{ url_for('torneos.lista', estado='inscripciones_abiertas') }}" class="btn btn-lg btn-rojo"><i class="bi bi-door-open"></i> Ver inscripciones abiertas</a>
+          {% if current_user.is_authenticated %}
+          <a href="{{ url_for('equipos.lista') }}" class="btn btn-lg btn-fantasma"><i class="bi bi-people"></i> Mis equipos</a>
+          {% else %}
+          <a href="{{ url_for('usuarios.registro') }}" class="btn btn-lg btn-fantasma"><i class="bi bi-person-plus"></i> Crear cuenta</a>
           {% endif %}
         </div>
       </div>
       <div class="col-lg-5">
-        <div class="row g-3">
-          {% set cifras = [
-            ('trophy', stats.torneos, 'Torneos'),
-            ('people', stats.usuarios, 'Jugadores'),
-            ('door-open', stats.torneos_por_estado.inscripciones_abiertas, 'Con inscripciones abiertas'),
-            ('card-checklist', stats.inscripciones, 'Inscripciones')] %}
-          {% for icono, valor, texto in cifras %}
-          <div class="col-6">
-            <div class="tarjeta cifra">
-              <i class="bi bi-{{ icono }}"></i>
-              <div class="cifra-valor">{{ valor }}</div>
-              <div class="cifra-texto">{{ texto }}</div>
+        <div class="hero-panel">
+          <div class="row g-3">
+            {% set cifras = [
+              ('trophy', stats.torneos, 'Torneos'),
+              ('people', stats.usuarios, 'Jugadores'),
+              ('door-open', stats.torneos_por_estado.inscripciones_abiertas, 'Inscripciones abiertas'),
+              ('card-checklist', stats.inscripciones, 'Participaciones')] %}
+            {% for icono, valor, texto in cifras %}
+            <div class="col-6">
+              <div class="cifra">
+                <i class="bi bi-{{ icono }}"></i>
+                <div class="cifra-valor">{{ valor }}</div>
+                <div class="cifra-texto">{{ texto }}</div>
+              </div>
             </div>
+            {% endfor %}
           </div>
-          {% endfor %}
         </div>
       </div>
     </div>
@@ -40,6 +43,22 @@
 </section>
 
 <div class="container">
+  <section class="seccion">
+    <div class="seccion-cabecera">
+      <h2><i class="bi bi-door-open"></i> Inscripciones abiertas</h2>
+      <a href="{{ url_for('torneos.lista', estado='inscripciones_abiertas') }}" class="enlace-mas">Ver todos <i class="bi bi-arrow-right"></i></a>
+    </div>
+    {% if abiertos %}
+    <div class="row g-3">
+      {% for torneo in abiertos %}
+      <div class="col-md-6 col-lg-4">{{ tarjeta_torneo(torneo) }}</div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="vacio"><i class="bi bi-inbox"></i><p>No hay torneos con inscripciones abiertas en este momento.</p></div>
+    {% endif %}
+  </section>
+
   {% if destacados %}
   <section class="seccion">
     <div class="seccion-cabecera">
@@ -55,18 +74,31 @@
 
   <section class="seccion">
     <div class="seccion-cabecera">
-      <h2><i class="bi bi-door-open"></i> Inscripciones abiertas</h2>
-      <a href="{{ url_for('torneos.lista', estado='inscripciones_abiertas') }}" class="enlace-mas">Ver todos <i class="bi bi-arrow-right"></i></a>
+      <h2><i class="bi bi-lightning-charge"></i> Cómo funciona</h2>
     </div>
-    {% if abiertos %}
     <div class="row g-3">
-      {% for torneo in abiertos %}
-      <div class="col-md-6 col-lg-4">{{ tarjeta_torneo(torneo) }}</div>
-      {% endfor %}
+      <div class="col-md-4">
+        <div class="tarjeta h-100">
+          <span class="marca-icono mb-3"><i class="bi bi-person-plus"></i></span>
+          <h3 class="h5">1. Creá tu cuenta</h3>
+          <p class="text-secundario small mb-0">Registrate con tu usuario o vinculá Steam, sumá tus juegos y armá tu equipo con invitaciones.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="tarjeta h-100">
+          <span class="marca-icono mb-3"><i class="bi bi-clipboard-check"></i></span>
+          <h3 class="h5">2. Inscribite</h3>
+          <p class="text-secundario small mb-0">Elegí un torneo individual o por equipos, confirmá el roster y quedate con tu lugar.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="tarjeta h-100">
+          <span class="marca-icono mb-3"><i class="bi bi-trophy"></i></span>
+          <h3 class="h5">3. Jugá y confirmá</h3>
+          <p class="text-secundario small mb-0">La sala te avisa cuando tu partida está lista. Cargá el marcador y el rival lo confirma.</p>
+        </div>
+      </div>
     </div>
-    {% else %}
-    <div class="vacio"><i class="bi bi-inbox"></i><p>No hay torneos con inscripciones abiertas en este momento.</p></div>
-    {% endif %}
   </section>
 </div>
 {% endblock %}

@@ -6,13 +6,19 @@
   <div class="row justify-content-center">
     <div class="col-lg-8">
       <div class="tarjeta tarjeta-form">
-        <h1 class="h3 mb-4"><i class="bi bi-{{ 'pencil-square' if torneo else 'plus-circle' }}"></i> {{ 'Editar «' ~ torneo.nombre ~ '»' if torneo else 'Nuevo torneo' }}</h1>
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <span class="marca-icono"><i class="bi bi-{{ 'pencil-square' if torneo else 'plus-circle' }}"></i></span>
+          <div>
+            <h1 class="h3 mb-0">{{ 'Editar «' ~ torneo.nombre ~ '»' if torneo else 'Nuevo torneo' }}</h1>
+            <p class="text-secundario small mb-0">Definí el formato, los cupos y las reglas de la competencia.</p>
+          </div>
+        </div>
         <form method="post" novalidate>
           {{ csrf() }}
           {{ campo('nombre', 'Nombre', datos, errores, requerido=true, extra='maxlength="100"') }}
           <div class="mb-3">
             <label class="form-label" for="descripcion">Descripción</label>
-            <textarea class="form-control {% if errores.descripcion %}is-invalid{% endif %}" id="descripcion" name="descripcion" rows="3" maxlength="2000">{{ datos.get('descripcion', '') }}</textarea>
+            <textarea class="form-control {% if errores.descripcion %}is-invalid{% endif %}" id="descripcion" name="descripcion" rows="3" maxlength="2000">{{ datos.get('descripcion', '') or '' }}</textarea>
             {% if errores.descripcion %}<div class="invalid-feedback">{{ errores.descripcion }}</div>{% endif %}
           </div>
           <div class="row">
@@ -38,6 +44,26 @@
             </div>
             <div class="col-md-4 js-solo-equipos">{{ campo('jugadores_por_equipo', 'Jugadores por equipo', datos, errores, tipo='number', extra='min="2" max="10"') }}</div>
           </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label" for="formato">Formato</label>
+                <select class="form-select {% if errores.formato %}is-invalid{% endif %}" id="formato" name="formato" {% if torneo and torneo.tiene_partidas %}disabled{% endif %}>
+                  {% for clave, texto in FORMATOS.items() %}
+                  <option value="{{ clave }}" {% if datos.get('formato') == clave %}selected{% endif %}>{{ texto }}</option>
+                  {% endfor %}
+                </select>
+                {% if errores.formato %}<div class="invalid-feedback">{{ errores.formato }}</div>{% endif %}
+                {% if torneo and torneo.tiene_partidas %}<div class="form-text">No se puede cambiar con partidas generadas.</div>{% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">{{ campo('premio', 'Premio', datos, errores, extra='maxlength="200" placeholder="Ejemplo: $50.000 y trofeo"') }}</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="reglas">Reglas</label>
+            <textarea class="form-control {% if errores.reglas %}is-invalid{% endif %}" id="reglas" name="reglas" rows="4" maxlength="5000" placeholder="Horarios, mapas, conducta y cualquier condición del torneo.">{{ datos.get('reglas', '') or '' }}</textarea>
+            {% if errores.reglas %}<div class="invalid-feedback">{{ errores.reglas }}</div>{% endif %}
+          </div>
           <div class="row align-items-center">
             <div class="col-md-6">
               <div class="mb-3">
@@ -59,8 +85,8 @@
             </div>
           </div>
           <div class="d-flex gap-2 justify-content-end">
-            <a href="{{ url_for('torneos.detalle', torneo_id=torneo.id) if torneo else url_for('torneos.lista') }}" class="btn btn-outline-light">Cancelar</a>
-            <button class="btn btn-gradiente" type="submit"><i class="bi bi-save"></i> {{ 'Guardar cambios' if torneo else 'Crear torneo' }}</button>
+            <a href="{{ url_for('torneos.detalle', torneo_id=torneo.id) if torneo else url_for('torneos.lista') }}" class="btn btn-fantasma">Cancelar</a>
+            <button class="btn btn-rojo" type="submit"><i class="bi bi-save"></i> {{ 'Guardar cambios' if torneo else 'Crear torneo' }}</button>
           </div>
         </form>
       </div>

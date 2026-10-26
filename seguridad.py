@@ -31,7 +31,8 @@ def csrf_token():
 
 
 def verificar_csrf():
-    """Se ejecuta antes de cada petición web que modifica datos."""
+    if not current_app.config.get("CSRF_ENABLED", True):
+        return
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and not request.path.startswith("/api/"):
         enviado = request.form.get("csrf_token", "")
         if not enviado or not secrets.compare_digest(enviado, session.get("_csrf", "")):
@@ -50,8 +51,8 @@ def _serializador():
 
 
 def generar_token(usuario):
-    # La huella del hash invalida los tokens anteriores si cambia la contraseña.
-    return _serializador().dumps({"id": usuario.id, "h": usuario.password_hash[-12:]})
+    huella = (usuario.password_hash or "")[-12:]
+    return _serializador().dumps({"id": usuario.id, "h": huella})
 
 
 def _usuario_desde_token():
@@ -66,7 +67,8 @@ def _usuario_desde_token():
     except BadSignature:
         return None, "Token inválido."
     usuario = db.session.get(Usuario, datos.get("id"))
-    if not usuario or usuario.password_hash[-12:] != datos.get("h"):
+    huella = (usuario.password_hash or "")[-12:] if usuario else None
+    if not usuario or huella != datos.get("h"):
         return None, "Token inválido."
     return usuario, None
 

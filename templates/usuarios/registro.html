@@ -21,7 +21,7 @@
           </div>
           <div class="form-text mt-n2 mb-3">Mínimo 8 caracteres, con letras y números.</div>
           {{ campo('juegos_favoritos', 'Videojuegos favoritos', datos, errores, ayuda='Separados por comas. Ej: Valorant, EA FC 25, Rocket League', extra='maxlength="255"') }}
-          <button class="btn btn-gradiente w-100 btn-lg" type="submit">Crear cuenta</button>
+          <button class="btn btn-rojo w-100 btn-lg" type="submit">Crear cuenta</button>
         </form>
         <p class="text-center mt-4 mb-0 text-secundario">¿Ya tenés cuenta? <a href="{{ url_for('usuarios.login') }}">Iniciá sesión</a></p>
       </div>

@@ -1,10 +1,11 @@
 """Rutas de usuarios: registro, login, perfil e inscripciones del jugador (web + API)."""
-import secrets
+import re
 
 from flask import Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 from sqlalchemy.exc import IntegrityError
 
+import equipos as eq
 import services as sv
 from models import Usuario, db
 from seguridad import destino_seguro, generar_token, obtener_json, token_requerido
@@ -103,12 +104,14 @@ def steam_callback():
         flash(f"Hola de nuevo, {usuario.username}.", "success")
         return redirect(url_for("main.index"))
 
-    username_base = resumen.get("personaname") or f"steam_{steam_id[-6:]}"
-    username = username_base.replace(" ", "_")
-    base = username
+    base = re.sub(r"[^A-Za-z0-9_.-]+", "_", resumen.get("personaname") or "").strip("_.-")
+    if len(base) < 3:
+        base = f"steam_{steam_id[-6:]}"
+    base = base[:26]
+    username = base
     sufijo = 1
     while Usuario.query.filter_by(username=username).first():
-        username = f"{base}_{sufijo}"
+        username = f"{base[:27]}_{sufijo}"
         sufijo += 1
 
     usuario = Usuario(
@@ -203,6 +206,7 @@ def _render_perfil(usuario, errores, mensaje_error=None):
         "usuarios/perfil.html",
         usuario=usuario,
         historial=sv.historial_usuario(usuario),
+        equipos=eq.equipos_de(usuario) if usuario.id else [],
         errores=errores,
         cs2_stats=cs2_stats,
         cs2_playtime=cs2_playtime,

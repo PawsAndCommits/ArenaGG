@@ -1,28 +1,29 @@
-"""Rutas de torneos e inscripciones (web + API)."""
+"""Rutas de torneos, inscripciones, partidas y resultados (web + API)."""
 import secrets
 
-from flask import Blueprint, flash, g, jsonify, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 
+import equipos as eq
+import notificaciones as notif
 import services as sv
 from extensiones import socketio
-from models import AsignacionPartida, Inscripcion, Partida, ServidorCS2, Torneo, db
-from seguridad import admin_requerido, obtener_json, token_requerido
+from models import AsignacionPartida, Inscripcion, Partida, ServidorCS2, Torneo, ahora, db
+from seguridad import admin_requerido, destino_seguro, obtener_json, token_requerido
 
 bp = Blueprint("torneos", __name__)
 api = Blueprint("api_torneos", __name__, url_prefix="/api")
-
-
-def _puede_operar_partida(partida, usuario):
-    """Admin, o capitán dueño de alguna de las dos inscripciones de la partida."""
-    if not usuario or not getattr(usuario, "is_authenticated", False):
-        return False
-    if getattr(usuario, "es_admin", False):
-        return True
-    for inscripcion in (partida.participante1, partida.participante2):
-        if inscripcion and inscripcion.usuario_id == usuario.id:
-            return True
-    return False
 
 
 def _datos_formulario_torneo():
@@ -30,6 +31,21 @@ def _datos_formulario_torneo():
     datos.pop("csrf_token", None)
     datos["destacado"] = "destacado" in request.form
     return datos
+
+
+def _emitir_actualizacion(torneo):
+    socketio.emit(
+        "torneo_actualizado", {"torneo_id": torneo.id}, to=f"torneo:{torneo.id}"
+    )
+
+
+def _url_sala(partida):
+    return url_for("torneos.sala", torneo_id=partida.torneo_id, partida_id=partida.id)
+
+
+def _redirigir_sala(partida):
+    destino = request.form.get("siguiente") or _url_sala(partida)
+    return redirect(destino_seguro(destino, _url_sala(partida)))
 
 
 @bp.route("/torneos")
@@ -41,12 +57,17 @@ def lista():
         "q": request.args.get("q", "").strip(),
     }
     try:
-        torneos = sv.buscar_torneos(filtros["estado"], filtros["videojuego"], filtros["modalidad"], filtros["q"])
+        torneos = sv.buscar_torneos(
+            filtros["estado"], filtros["videojuego"], filtros["modalidad"], filtros["q"]
+        )
     except sv.ErrorNegocio:
         flash("Filtro inválido.", "warning")
         torneos = sv.buscar_torneos()
     return render_template(
-        "torneos/lista.html", torneos=torneos, filtros=filtros, videojuegos=sv.videojuegos_disponibles()
+        "torneos/lista.html",
+        torneos=torneos,
+        filtros=filtros,
+        videojuegos=sv.videojuegos_disponibles(),
     )
 
 
@@ -54,19 +75,47 @@ def lista():
 def detalle(torneo_id):
     torneo = db.get_or_404(Torneo, torneo_id)
     partidas = sorted(torneo.partidas, key=lambda p: (p.ronda, p.numero))
-    try:
-        posiciones = sv.tabla_posiciones(torneo)
-    except Exception:
-        posiciones = []
+    mi_inscripcion = (
+        torneo.inscripcion_de(current_user) if current_user.is_authenticated else None
+    )
+    mis_equipos = []
+    if current_user.is_authenticated and torneo.es_por_equipos:
+        mis_equipos = eq.equipos_para_torneo(torneo, current_user)
     servidores = []
-    if current_user.is_authenticated and current_user.es_admin:
+    if current_app.config["MODO_SERVIDORES"] and current_user.is_authenticated and current_user.es_admin:
         servidores = ServidorCS2.query.filter_by(activo=True).order_by(ServidorCS2.nombre).all()
     return render_template(
         "torneos/detalle.html",
         torneo=torneo,
-        mi_inscripcion=torneo.inscripcion_de(current_user) if current_user.is_authenticated else None,
+        mi_inscripcion=mi_inscripcion,
+        mi_partida=sv.mi_partida(torneo, current_user) if current_user.is_authenticated else None,
         partidas=partidas,
-        posiciones=posiciones,
+        posiciones=sv.tabla_posiciones(torneo),
+        servidores_disponibles=servidores,
+        mis_equipos=mis_equipos,
+    )
+
+
+@bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>")
+def sala(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = db.get_or_404(Partida, partida_id)
+    if partida.torneo_id != torneo.id:
+        abort(404)
+    servidores = []
+    if current_app.config["MODO_SERVIDORES"] and current_user.is_authenticated and current_user.es_admin:
+        servidores = ServidorCS2.query.filter_by(activo=True).order_by(ServidorCS2.nombre).all()
+    return render_template(
+        "torneos/sala.html",
+        torneo=torneo,
+        partida=partida,
+        es_participante=current_user.is_authenticated and partida.incluye_usuario(current_user),
+        puede_reportar=partida.puede_reportar(current_user),
+        puede_confirmar=partida.puede_confirmar(current_user),
+        puede_disputar=partida.puede_disputar(current_user),
+        puede_resolver=partida.puede_resolver(current_user),
+        puede_rechazar=partida.puede_rechazar(current_user),
+        asignacion=partida.asignacion_partida,
         servidores_disponibles=servidores,
     )
 
@@ -74,7 +123,7 @@ def detalle(torneo_id):
 @bp.route("/torneos/nuevo", methods=["GET", "POST"])
 @admin_requerido
 def nuevo():
-    datos, errores = {"modalidad": "individual", "estado": "inscripciones_abiertas"}, {}
+    datos, errores = {"modalidad": "individual", "estado": "inscripciones_abiertas", "formato": "BO1"}, {}
     if request.method == "POST":
         datos = _datos_formulario_torneo()
         try:
@@ -96,11 +145,14 @@ def editar(torneo_id):
     datos = {
         "nombre": torneo.nombre,
         "descripcion": torneo.descripcion,
+        "reglas": torneo.reglas,
+        "premio": torneo.premio,
         "videojuego": torneo.videojuego,
         "fecha": torneo.fecha.strftime("%Y-%m-%dT%H:%M"),
         "cupo_maximo": torneo.cupo_maximo,
         "estado": torneo.estado,
         "modalidad": torneo.modalidad,
+        "formato": torneo.formato,
         "jugadores_por_equipo": torneo.jugadores_por_equipo or "",
         "destacado": torneo.destacado,
     }
@@ -132,7 +184,14 @@ def eliminar(torneo_id):
 @login_required
 def inscribirse(torneo_id):
     torneo = db.get_or_404(Torneo, torneo_id)
-    sv.inscribir(torneo, current_user, request.form.to_dict())
+    try:
+        sv.inscribir(torneo, current_user, request.form.to_dict())
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+        for mensaje in error.errores.values():
+            flash(mensaje, "danger")
+        return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
     flash(f"¡Listo! Quedaste inscripto en «{torneo.nombre}».", "success")
     return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
 
@@ -141,8 +200,13 @@ def inscribirse(torneo_id):
 @login_required
 def cancelar(torneo_id):
     torneo = db.get_or_404(Torneo, torneo_id)
-    sv.cancelar_inscripcion(torneo, current_user)
-    flash("Cancelaste tu inscripción.", "info")
+    try:
+        sv.cancelar_inscripcion(torneo, current_user)
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+    else:
+        flash("Cancelaste tu inscripción.", "info")
     return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
 
 
@@ -153,15 +217,26 @@ def iniciar(torneo_id):
     try:
         sv.iniciar_torneo(torneo)
     except sv.ErrorNegocio as error:
+        db.session.rollback()
         flash(error.mensaje, "danger")
         return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
-    flash("¡Torneo iniciado! Se generaron los cruces de la primera ronda.", "success")
-    socketio.emit("torneo_iniciado", {"torneo_id": torneo.id, "nombre": torneo.nombre})
-    socketio.emit("match_ready", {
-        "torneo_id": torneo.id,
-        "torneo": torneo.nombre,
-        "mensaje": "TORNEO INICIADO - CONÉCTATE AL SERVIDOR",
-    })
+    flash("¡Torneo iniciado! La llave ya está completa.", "success")
+    _emitir_actualizacion(torneo)
+    return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
+
+
+@bp.route("/torneos/<int:torneo_id>/reiniciar", methods=["POST"])
+@admin_requerido
+def reiniciar(torneo_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    try:
+        sv.reiniciar_llave(torneo, current_user)
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+    else:
+        flash("Llave reiniciada. El torneo volvió a inscripciones abiertas.", "success")
+        _emitir_actualizacion(torneo)
     return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
 
 
@@ -171,46 +246,141 @@ def cargar_resultado(torneo_id, partida_id):
     torneo = db.get_or_404(Torneo, torneo_id)
     partida = db.get_or_404(Partida, partida_id)
     if partida.torneo_id != torneo.id:
-        flash("La partida no pertenece a este torneo.", "danger")
-        return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
-    if not _puede_operar_partida(partida, current_user):
-        flash("Solo el administrador o los capitanes de la partida pueden cargar el resultado.", "danger")
-        return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
+        abort(404)
+    if not partida.puede_reportar(current_user):
+        flash("No podés cargar el resultado de esta partida.", "danger")
+        return redirect(_url_sala(partida))
     try:
-        partida = sv.registrar_resultado_partida(torneo, partida_id, request.form.to_dict(), current_user)
+        partida = sv.registrar_resultado_partida(
+            torneo, partida_id, request.form.to_dict(), current_user
+        )
     except sv.ErrorNegocio as error:
         db.session.rollback()
         flash(error.mensaje, "danger")
         for mensaje in error.errores.values():
             flash(mensaje, "danger")
-        return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
-    flash("Resultado registrado. El ganador avanzó automáticamente.", "success")
-    socketio.emit("match_ready", {
-        "torneo_id": torneo.id,
-        "torneo": torneo.nombre,
-        "partida_id": partida.id,
-        "partida_numero": partida.numero,
-        "ronda": partida.ronda,
-    })
-    return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
+        return redirect(_url_sala(partida))
+    if partida.resultado and partida.resultado.estado == "pendiente":
+        flash("Resultado cargado. Ahora tiene que confirmarlo el rival.", "success")
+    else:
+        flash("Resultado confirmado. El ganador avanzó automáticamente.", "success")
+    _emitir_actualizacion(torneo)
+    return _redirigir_sala(partida)
+
+
+@bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>/confirmar", methods=["POST"])
+@login_required
+def confirmar_resultado(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = db.get_or_404(Partida, partida_id)
+    if partida.torneo_id != torneo.id:
+        abort(404)
+    try:
+        partida = sv.confirmar_resultado(torneo, partida_id, current_user)
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+        return redirect(_url_sala(partida))
+    flash("Resultado confirmado. ¡Gracias!", "success")
+    _emitir_actualizacion(torneo)
+    return _redirigir_sala(partida)
+
+
+@bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>/disputar", methods=["POST"])
+@login_required
+def disputar_resultado(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = db.get_or_404(Partida, partida_id)
+    if partida.torneo_id != torneo.id:
+        abort(404)
+    try:
+        partida = sv.disputar_resultado(torneo, partida_id, request.form.to_dict(), current_user)
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+        for mensaje in error.errores.values():
+            flash(mensaje, "danger")
+        return redirect(_url_sala(partida))
+    flash("Disputa enviada. El administrador va a revisar el resultado.", "warning")
+    _emitir_actualizacion(torneo)
+    return _redirigir_sala(partida)
+
+
+@bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>/resolver", methods=["POST"])
+@admin_requerido
+def resolver_resultado(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = db.get_or_404(Partida, partida_id)
+    if partida.torneo_id != torneo.id:
+        abort(404)
+    try:
+        partida = sv.resolver_disputa(torneo, partida_id, request.form.to_dict(), current_user)
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+        for mensaje in error.errores.values():
+            flash(mensaje, "danger")
+        return redirect(_url_sala(partida))
+    flash("Resultado resuelto y confirmado.", "success")
+    _emitir_actualizacion(torneo)
+    return _redirigir_sala(partida)
+
+
+@bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>/rechazar", methods=["POST"])
+@admin_requerido
+def rechazar_resultado(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = db.get_or_404(Partida, partida_id)
+    if partida.torneo_id != torneo.id:
+        abort(404)
+    try:
+        partida = sv.rechazar_resultado(torneo, partida_id, current_user)
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+        return redirect(_url_sala(partida))
+    flash("Resultado rechazado. Los jugadores pueden cargar uno nuevo.", "info")
+    _emitir_actualizacion(torneo)
+    return _redirigir_sala(partida)
+
+
+@bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>/programar", methods=["POST"])
+@admin_requerido
+def programar_partida(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = db.get_or_404(Partida, partida_id)
+    if partida.torneo_id != torneo.id:
+        abort(404)
+    try:
+        partida = sv.programar_partida(
+            torneo, partida_id, request.form.get("fecha_programada"), current_user
+        )
+    except sv.ErrorNegocio as error:
+        db.session.rollback()
+        flash(error.mensaje, "danger")
+    else:
+        flash("Horario de la partida actualizado.", "success")
+        _emitir_actualizacion(torneo)
+    return _redirigir_sala(partida)
 
 
 @bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>/servidor", methods=["POST"])
 @admin_requerido
 def asignar_servidor(torneo_id, partida_id):
+    if not current_app.config["MODO_SERVIDORES"]:
+        abort(404)
     torneo = db.get_or_404(Torneo, torneo_id)
     partida = db.get_or_404(Partida, partida_id)
     if partida.torneo_id != torneo.id:
-        flash("La partida no pertenece a este torneo.", "danger")
-        return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
+        abort(404)
     if partida.estado != "pendiente" or not partida.lista_para_jugar:
         flash("Solo se puede asignar servidor a partidas pendientes con ambos participantes.", "warning")
-        return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
+        return redirect(_url_sala(partida))
 
     servidor = db.session.get(ServidorCS2, request.form.get("servidor_id", type=int) or 0)
     if not servidor or not servidor.activo:
         flash("Elegí un servidor activo.", "danger")
-        return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
+        return redirect(_url_sala(partida))
 
     asignacion = AsignacionPartida.query.filter_by(partida_id=partida.id).first()
     if asignacion is None:
@@ -224,7 +394,7 @@ def asignar_servidor(torneo_id, partida_id):
     else:
         asignacion.servidor_id = servidor.id
         asignacion.estado = "asignado"
-        asignacion.actualizado_en = sv.ahora()
+        asignacion.actualizado_en = ahora()
     db.session.commit()
 
     from integraciones import cs2
@@ -236,35 +406,40 @@ def asignar_servidor(torneo_id, partida_id):
     else:
         flash(f"Servidor «{servidor.nombre}» asignado y partida preparada por RCON.", "success")
 
-    socketio.emit("match_ready", {
-        "torneo_id": torneo.id,
-        "torneo": torneo.nombre,
-        "partida_id": partida.id,
-        "partida_numero": partida.numero,
-        "servidor_ip": servidor.ip,
-        "servidor_puerto": servidor.puerto,
-        "connect": f"connect {servidor.ip}:{servidor.puerto}",
-    })
-    return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
+    notif.avisar_partida(
+        partida,
+        "servidor",
+        "Servidor asignado",
+        f"Conectate a {servidor.ip}:{servidor.puerto}.",
+    )
+    _emitir_actualizacion(torneo)
+    return _redirigir_sala(partida)
 
 
 @bp.route("/torneos/<int:torneo_id>/partidas/<int:partida_id>/servidor/quitar", methods=["POST"])
 @admin_requerido
 def quitar_servidor(torneo_id, partida_id):
+    if not current_app.config["MODO_SERVIDORES"]:
+        abort(404)
     torneo = db.get_or_404(Torneo, torneo_id)
+    partida = db.session.get(Partida, partida_id)
     asignacion = AsignacionPartida.query.filter_by(partida_id=partida_id).first()
     if asignacion:
         db.session.delete(asignacion)
         db.session.commit()
         flash("Servidor liberado de la partida.", "info")
+    if partida and partida.torneo_id == torneo.id:
+        return redirect(_url_sala(partida))
     return redirect(url_for("torneos.detalle", torneo_id=torneo.id))
 
 
 @api.route("/torneos", methods=["GET"])
 def api_listar():
     torneos = sv.buscar_torneos(
-        request.args.get("estado"), request.args.get("videojuego"),
-        request.args.get("modalidad"), request.args.get("q"),
+        request.args.get("estado"),
+        request.args.get("videojuego"),
+        request.args.get("modalidad"),
+        request.args.get("q"),
     )
     return jsonify([t.to_dict() for t in torneos])
 
@@ -302,8 +477,16 @@ def api_inscribirse(torneo_id):
     torneo = db.get_or_404(Torneo, torneo_id)
     datos = request.get_json(silent=True) or {}
     inscripcion = sv.inscribir(torneo, g.usuario, datos if isinstance(datos, dict) else {})
-    return jsonify({"mensaje": "Inscripción realizada.", "inscripcion": inscripcion.to_dict(),
-                    "cupos_disponibles": torneo.cupos_disponibles}), 201
+    return (
+        jsonify(
+            {
+                "mensaje": "Inscripción realizada.",
+                "inscripcion": inscripcion.to_dict(),
+                "cupos_disponibles": torneo.cupos_disponibles,
+            }
+        ),
+        201,
+    )
 
 
 @api.route("/torneos/<int:torneo_id>/inscribirse", methods=["DELETE"])
@@ -311,19 +494,36 @@ def api_inscribirse(torneo_id):
 def api_cancelar_inscripcion(torneo_id):
     torneo = db.get_or_404(Torneo, torneo_id)
     sv.cancelar_inscripcion(torneo, g.usuario)
-    return jsonify({"mensaje": "Inscripción cancelada.", "cupos_disponibles": torneo.cupos_disponibles})
+    return jsonify(
+        {"mensaje": "Inscripción cancelada.", "cupos_disponibles": torneo.cupos_disponibles}
+    )
 
 
 @api.route("/torneos/<int:torneo_id>/participantes", methods=["GET"])
 def api_participantes(torneo_id):
     torneo = db.get_or_404(Torneo, torneo_id)
-    return jsonify({
-        "torneo_id": torneo.id,
-        "cupo_maximo": torneo.cupo_maximo,
-        "inscriptos": torneo.inscriptos,
-        "cupos_disponibles": torneo.cupos_disponibles,
-        "participantes": [i.to_dict() for i in torneo.inscripciones],
-    })
+    return jsonify(
+        {
+            "torneo_id": torneo.id,
+            "cupo_maximo": torneo.cupo_maximo,
+            "inscriptos": torneo.inscriptos,
+            "cupos_disponibles": torneo.cupos_disponibles,
+            "participantes": [i.to_dict() for i in torneo.inscripciones],
+        }
+    )
+
+
+@api.route("/torneos/<int:torneo_id>/posiciones", methods=["GET"])
+def api_posiciones(torneo_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    return jsonify({"torneo_id": torneo.id, "posiciones": sv.tabla_posiciones(torneo)})
+
+
+@api.route("/torneos/<int:torneo_id>/partidas", methods=["GET"])
+def api_partidas(torneo_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partidas = sorted(torneo.partidas, key=lambda p: (p.ronda, p.numero))
+    return jsonify({"torneo_id": torneo.id, "partidas": [p.to_dict() for p in partidas]})
 
 
 @api.route("/inscripciones", methods=["GET"])
@@ -348,12 +548,7 @@ def api_eliminar_inscripcion(inscripcion_id):
 def api_iniciar(torneo_id):
     torneo = db.get_or_404(Torneo, torneo_id)
     sv.iniciar_torneo(torneo)
-    socketio.emit("torneo_iniciado", {"torneo_id": torneo.id, "nombre": torneo.nombre})
-    socketio.emit("match_ready", {
-        "torneo_id": torneo.id,
-        "torneo": torneo.nombre,
-        "mensaje": "TORNEO INICIADO - CONÉCTATE AL SERVIDOR",
-    })
+    _emitir_actualizacion(torneo)
     return jsonify({"mensaje": "Torneo iniciado.", "torneo": torneo.to_dict(detalle=True)})
 
 
@@ -364,14 +559,41 @@ def api_cargar_resultado(torneo_id, partida_id):
     partida = db.get_or_404(Partida, partida_id)
     if partida.torneo_id != torneo.id:
         return jsonify({"error": "La partida no pertenece a este torneo."}), 400
-    if not _puede_operar_partida(partida, g.usuario):
-        return jsonify({"error": "Solo el administrador o los capitanes pueden cargar el resultado."}), 403
+    if not partida.puede_reportar(g.usuario):
+        return jsonify({"error": "No podés cargar el resultado de esta partida."}), 403
     partida = sv.registrar_resultado_partida(torneo, partida_id, obtener_json(), g.usuario)
-    socketio.emit("match_ready", {
-        "torneo_id": torneo.id,
-        "torneo": torneo.nombre,
-        "partida_id": partida.id,
-        "partida_numero": partida.numero,
-        "ronda": partida.ronda,
-    })
+    _emitir_actualizacion(torneo)
     return jsonify({"mensaje": "Resultado registrado.", "partida": partida.to_dict()})
+
+
+@api.route(
+    "/torneos/<int:torneo_id>/partidas/<int:partida_id>/confirmar", methods=["POST"]
+)
+@token_requerido()
+def api_confirmar_resultado(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = sv.confirmar_resultado(torneo, partida_id, g.usuario)
+    _emitir_actualizacion(torneo)
+    return jsonify({"mensaje": "Resultado confirmado.", "partida": partida.to_dict()})
+
+
+@api.route(
+    "/torneos/<int:torneo_id>/partidas/<int:partida_id>/disputar", methods=["POST"]
+)
+@token_requerido()
+def api_disputar_resultado(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = sv.disputar_resultado(torneo, partida_id, obtener_json(), g.usuario)
+    _emitir_actualizacion(torneo)
+    return jsonify({"mensaje": "Disputa registrada.", "partida": partida.to_dict()})
+
+
+@api.route(
+    "/torneos/<int:torneo_id>/partidas/<int:partida_id>/resolver", methods=["POST"]
+)
+@token_requerido(admin=True)
+def api_resolver_resultado(torneo_id, partida_id):
+    torneo = db.get_or_404(Torneo, torneo_id)
+    partida = sv.resolver_disputa(torneo, partida_id, obtener_json(), g.usuario)
+    _emitir_actualizacion(torneo)
+    return jsonify({"mensaje": "Resultado resuelto.", "partida": partida.to_dict()})

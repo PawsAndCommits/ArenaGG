@@ -9,7 +9,7 @@
       <p class="text-secundario mb-0">Encontrá tu próximo desafío.</p>
     </div>
     {% if current_user.is_authenticated and current_user.es_admin %}
-    <a href="{{ url_for('torneos.nuevo') }}" class="btn btn-gradiente"><i class="bi bi-plus-lg"></i> Nuevo torneo</a>
+    <a href="{{ url_for('torneos.nuevo') }}" class="btn btn-rojo"><i class="bi bi-plus-lg"></i> Nuevo torneo</a>
     {% endif %}
   </div>
 
@@ -50,7 +50,7 @@
         </select>
       </div>
       <div class="col-6 col-md-1 d-grid">
-        <button class="btn btn-outline-light" type="submit" aria-label="Filtrar"><i class="bi bi-funnel"></i></button>
+        <button class="btn btn-fantasma" type="submit" aria-label="Filtrar"><i class="bi bi-funnel"></i></button>
       </div>
     </div>
   </form>
@@ -63,7 +63,7 @@
   </div>
   {% else %}
   <div class="vacio"><i class="bi bi-search"></i><p>No se encontraron torneos con esos filtros.</p>
-    {% if filtros.values()|select|list %}<a class="btn btn-sm btn-outline-light" href="{{ url_for('torneos.lista') }}">Limpiar filtros</a>{% endif %}
+    {% if filtros.values()|select|list %}<a class="btn btn-sm btn-fantasma" href="{{ url_for('torneos.lista') }}">Limpiar filtros</a>{% endif %}
   </div>
   {% endif %}
 </div>

@@ -1,23 +1,25 @@
+{% from "_macros.html" import icono_notificacion %}
 <!doctype html>
 <html lang="es" data-bs-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block titulo %}Inicio{% endblock %} · ArenaGG</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/estilos.css') }}" rel="stylesheet">
 </head>
-<body>
+<body data-usuario="{{ current_user.id if current_user.is_authenticated else '' }}">
   <div class="fondo-glow" aria-hidden="true"></div>
 
   <nav class="navbar navbar-expand-lg sticky-top barra">
     <div class="container">
       <a class="navbar-brand marca" href="{{ url_for('main.index') }}">
-        <span class="marca-icono"><i class="bi bi-controller"></i></span> Arena<span class="text-gradiente">GG</span>
+        <span class="marca-icono"><i class="bi bi-crosshair"></i></span> ARENA<span>GG</span>
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu" aria-controls="menu" aria-expanded="false" aria-label="Abrir menú">
         <span class="navbar-toggler-icon"></span>
@@ -25,31 +27,70 @@
       <div class="collapse navbar-collapse" id="menu">
         <ul class="navbar-nav me-auto">
           <li class="nav-item"><a class="nav-link {% if request.endpoint == 'main.index' %}active{% endif %}" href="{{ url_for('main.index') }}">Inicio</a></li>
-          <li class="nav-item"><a class="nav-link {% if request.endpoint and request.endpoint.startswith('torneos.') %}active{% endif %}" href="{{ url_for('torneos.lista') }}">Torneos</a></li>
+          <li class="nav-item"><a class="nav-link {% if request.endpoint and request.endpoint.startswith('torneos.') and request.endpoint != 'torneos.nuevo' %}active{% endif %}" href="{{ url_for('torneos.lista') }}">Torneos</a></li>
+          <li class="nav-item"><a class="nav-link {% if request.endpoint and request.endpoint.startswith('equipos.') %}active{% endif %}" href="{{ url_for('equipos.lista') }}">Equipos</a></li>
           {% if current_user.is_authenticated and current_user.es_admin %}
-          <li class="nav-item"><a class="nav-link {% if request.endpoint == 'torneos.nuevo' %}active{% endif %}" href="{{ url_for('torneos.nuevo') }}"><i class="bi bi-plus-circle"></i> Nuevo torneo</a></li>
+          <li class="nav-item"><a class="nav-link {% if request.endpoint == 'torneos.nuevo' %}active{% endif %}" href="{{ url_for('torneos.nuevo') }}"><i class="bi bi-plus-lg"></i> Nuevo torneo</a></li>
           {% endif %}
         </ul>
         <div class="d-flex gap-2 align-items-lg-center flex-column flex-lg-row mt-3 mt-lg-0">
           {% if current_user.is_authenticated %}
+            <div class="dropdown">
+              <button class="btn btn-campana position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Notificaciones">
+                <i class="bi bi-bell"></i>
+                <span class="campana-contador {% if not notificaciones_sin_leer %}d-none{% endif %}" data-notificaciones-contador>{{ notificaciones_sin_leer }}</span>
+              </button>
+              <div class="dropdown-menu dropdown-menu-end panel-notificaciones">
+                <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom border-secondary-subtle">
+                  <strong class="text-uppercase small">Notificaciones</strong>
+                  <a class="small enlace-rojo" href="{{ url_for('notificaciones.lista') }}">Ver todas</a>
+                </div>
+                {% for notificacion in notificaciones_recientes %}
+                <form method="post" action="{{ url_for('notificaciones.abrir', notificacion_id=notificacion.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="notificacion-mini {% if not notificacion.leida %}sin-leer{% endif %}" type="submit">
+                    <span class="notificacion-icono">{{ icono_notificacion(notificacion.tipo) }}</span>
+                    <span class="flex-grow-1 text-start">
+                      <span class="d-block small fw-semibold">{{ notificacion.titulo }}</span>
+                      <span class="d-block text-secundario notificacion-texto">{{ notificacion.mensaje }}</span>
+                      <span class="d-block text-secundario notificacion-fecha">{{ notificacion.creada_en|fecha('%d/%m %H:%M') }}</span>
+                    </span>
+                  </button>
+                </form>
+                {% else %}
+                <div class="px-3 py-4 text-center text-secundario small">No tenés notificaciones.</div>
+                {% endfor %}
+                {% if notificaciones_sin_leer %}
+                <form method="post" action="{{ url_for('notificaciones.leer_todas') }}" class="border-top border-secondary-subtle">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="dropdown-item small text-center py-2" type="submit">Marcar todas como leídas</button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
             <a class="btn btn-sm btn-fantasma" href="{{ url_for('usuarios.perfil') }}">
-              <span class="avatar avatar-sm">{{ current_user.username[0]|upper }}</span> {{ current_user.username }}
-              {% if current_user.es_admin %}<span class="badge text-bg-violeta ms-1">admin</span>{% endif %}
+              {% if current_user.steam_avatar %}
+              <img class="avatar avatar-sm" src="{{ current_user.steam_avatar }}" alt="">
+              {% else %}
+              <span class="avatar avatar-sm">{{ current_user.username[0]|upper }}</span>
+              {% endif %}
+              {{ current_user.username }}
+              {% if current_user.es_admin %}<span class="badge text-bg-danger ms-1">admin</span>{% endif %}
             </a>
             <form method="post" action="{{ url_for('usuarios.logout') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <button class="btn btn-sm btn-outline-light w-100" type="submit"><i class="bi bi-box-arrow-right"></i> Salir</button>
+              <button class="btn btn-sm btn-fantasma w-100" type="submit"><i class="bi bi-box-arrow-right"></i> Salir</button>
             </form>
           {% else %}
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('usuarios.login') }}">Iniciar sesión</a>
-            <a class="btn btn-sm btn-gradiente" href="{{ url_for('usuarios.registro') }}">Registrarse</a>
+            <a class="btn btn-sm btn-fantasma" href="{{ url_for('usuarios.login') }}">Iniciar sesión</a>
+            <a class="btn btn-sm btn-rojo" href="{{ url_for('usuarios.registro') }}">Registrarse</a>
           {% endif %}
         </div>
       </div>
     </div>
   </nav>
 
-  <main class="py-4">
+  <main class="py-4" {% block main_attrs %}{% endblock %}>
     <div class="container">
       {% with mensajes = get_flashed_messages(with_categories=true) %}
         {% if mensajes %}
@@ -69,24 +110,21 @@
 
   <footer class="pie">
     <div class="container d-flex flex-column flex-md-row justify-content-between gap-2">
-      <span><i class="bi bi-controller"></i> ArenaGG · Sistema de torneos de videojuegos</span>
-      <span class="text-secundario">Flask · SQLite · Bootstrap 5</span>
+      <span><i class="bi bi-crosshair"></i> ArenaGG · Competí, ganá, subí de nivel</span>
+      <span class="text-secundario">Flask · SQLite · Socket.IO</span>
     </div>
   </footer>
 
-  <div class="modal fade" id="matchReadyModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered modal-xl">
-      <div class="modal-content border-0" style="background: radial-gradient(circle at top, #1f2937, #0b1026);">
-        <div class="modal-body text-center py-5">
-          <div class="mb-3">
-            <span class="badge text-bg-danger px-3 py-2 text-uppercase" style="letter-spacing:6px">Match Ready</span>
-          </div>
-          <h2 class="display-4 fw-bold text-uppercase mb-2" style="letter-spacing:12px">CONÉCTATE AL SERVIDOR</h2>
-          <p class="lead text-info mb-4" id="matchReadyInfo">Tu partida está lista</p>
-          <div class="d-flex justify-content-center gap-3 flex-wrap">
-            <a class="btn btn-success px-4 d-none" id="matchReadyConnect" href="#"><i class="bi bi-controller"></i> Conectar al servidor</a>
-            <button class="btn btn-outline-light px-4" data-bs-dismiss="modal"><i class="bi bi-x-circle"></i> Cerrar</button>
-          </div>
+  <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+
+  <div class="modal fade" id="matchReadyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content modal-arena">
+        <div class="modal-body text-center py-5 px-4">
+          <span class="chip chip-rojo mb-3"><i class="bi bi-broadcast"></i> Match ready</span>
+          <h2 class="display-5 mb-2">PARTIDA LISTA</h2>
+          <p class="text-secundario mb-4" id="matchReadyInfo">Ya podés jugar tu partida.</p>
+          <a class="btn btn-rojo px-4" id="matchReadyLink" href="#"><i class="bi bi-controller"></i> Ver partida</a>
         </div>
       </div>
     </div>

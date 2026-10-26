@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf, icono_notificacion %}
+{% block titulo %}Notificaciones{% endblock %}
+{% block contenido %}
+<div class="container">
+  <div class="cabecera-pagina d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3">
+    <div>
+      <h1><i class="bi bi-bell"></i> Notificaciones</h1>
+      <p class="text-secundario mb-0">Partidas, resultados, equipos y avisos de la organización.</p>
+    </div>
+    {% if sin_leer %}
+    <form method="post" action="{{ url_for('notificaciones.leer_todas') }}">
+      {{ csrf() }}
+      <button class="btn btn-sm btn-fantasma" type="submit"><i class="bi bi-check2-all"></i> Marcar todas como leídas</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <ul class="nav nav-tabs pestanas mb-3">
+    <li class="nav-item"><a class="nav-link {{ 'active' if filtro != 'sin_leer' }}" href="{{ url_for('notificaciones.lista') }}">Todas</a></li>
+    <li class="nav-item"><a class="nav-link {{ 'active' if filtro == 'sin_leer' }}" href="{{ url_for('notificaciones.lista', filtro='sin_leer') }}">Sin leer {% if sin_leer %}<span class="badge text-bg-rojo">{{ sin_leer }}</span>{% endif %}</a></li>
+  </ul>
+
+  {% if pagina.items %}
+  <div class="tarjeta p-0 overflow-hidden">
+    {% for notificacion in pagina.items %}
+    <form method="post" action="{{ url_for('notificaciones.abrir', notificacion_id=notificacion.id) }}">
+      {{ csrf() }}
+      <button class="notif-fila {{ 'sin-leer' if not notificacion.leida else 'leida' }}" type="submit">
+        <span class="notificacion-icono">{{ icono_notificacion(notificacion.tipo) }}</span>
+        <span class="flex-grow-1 min-w-0">
+          <span class="d-flex flex-wrap justify-content-between gap-2">
+            <span class="fw-semibold">{{ notificacion.titulo }}</span>
+            <span class="small text-secundario">{{ notificacion.creada_en|fecha('%d/%m/%Y %H:%M') }}</span>
+          </span>
+          <span class="d-block small text-secundario mt-1">{{ notificacion.mensaje }}</span>
+          {% if notificacion.url %}<span class="d-block small enlace-rojo mt-1">Abrir <i class="bi bi-arrow-right"></i></span>{% endif %}
+        </span>
+        <span class="notif-punto"></span>
+      </button>
+    </form>
+    {% endfor %}
+  </div>
+
+  {% if pagina.pages > 1 %}
+  <nav class="mt-4" aria-label="Páginas de notificaciones">
+    <ul class="pagination justify-content-center">
+      <li class="page-item {{ 'disabled' if not pagina.has_prev }}"><a class="page-link" href="{{ url_for('notificaciones.lista', pagina=pagina.prev_num, filtro=filtro) }}">Anterior</a></li>
+      {% for numero in pagina.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if numero %}
+        <li class="page-item {{ 'active' if numero == pagina.page }}"><a class="page-link" href="{{ url_for('notificaciones.lista', pagina=numero, filtro=filtro) }}">{{ numero }}</a></li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+      <li class="page-item {{ 'disabled' if not pagina.has_next }}"><a class="page-link" href="{{ url_for('notificaciones.lista', pagina=pagina.next_num, filtro=filtro) }}">Siguiente</a></li>
+    </ul>
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="vacio">
+    <i class="bi bi-bell-slash"></i>
+    <p>{{ 'No tenés notificaciones sin leer.' if filtro == 'sin_leer' else 'Todavía no tenés notificaciones.' }}</p>
+    <a class="btn btn-sm btn-fantasma" href="{{ url_for('torneos.lista') }}">Ver torneos</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

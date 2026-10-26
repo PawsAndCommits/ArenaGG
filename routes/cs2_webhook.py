@@ -3,11 +3,11 @@
 import hashlib
 import hmac
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, abort, current_app, jsonify, request
 
 import services as sv
 from extensiones import socketio
-from models import AsignacionPartida, Partida, db
+from models import AsignacionPartida, Partida, ahora, db
 
 bp = Blueprint("cs2_webhook", __name__, url_prefix="/api/cs2")
 
@@ -15,7 +15,7 @@ bp = Blueprint("cs2_webhook", __name__, url_prefix="/api/cs2")
 def _firma_valida(cuerpo):
     secreto = current_app.config.get("CS2_WEBHOOK_SECRET") or ""
     if not secreto:
-        return True  # sin secreto configurado no se pide firma
+        return False
     recibida = request.headers.get("X-CS2-Signature", "")
     esperada = hmac.new(secreto.encode(), cuerpo, hashlib.sha256).hexdigest()
     return bool(recibida) and hmac.compare_digest(esperada, recibida)
@@ -23,6 +23,11 @@ def _firma_valida(cuerpo):
 
 @bp.route("/webhook/match-result", methods=["POST"])
 def match_result():
+    if not current_app.config.get("MODO_SERVIDORES"):
+        abort(404)
+    if not current_app.config.get("CS2_WEBHOOK_SECRET"):
+        return jsonify({"error": "El webhook no está configurado."}), 503
+
     cuerpo = request.get_data() or b""
     if not _firma_valida(cuerpo):
         return jsonify({"error": "Firma inválida."}), 401
@@ -55,20 +60,18 @@ def match_result():
     asignacion = AsignacionPartida.query.filter_by(partida_id=partida.id).first()
     if asignacion:
         asignacion.estado = "finalizado"
-        asignacion.actualizado_en = sv.ahora()
+        asignacion.actualizado_en = ahora()
         db.session.commit()
 
-    socketio.emit("match_ready", {
-        "torneo_id": torneo.id,
-        "torneo": torneo.nombre,
-        "partida_id": partida.id,
-        "partida_numero": partida.numero,
-        "mensaje": "RESULTADO AUTOMÁTICO RECIBIDO - GANADOR AVANZADO",
-    })
+    socketio.emit(
+        "torneo_actualizado", {"torneo_id": torneo.id}, to=f"torneo:{torneo.id}"
+    )
 
-    return jsonify({
-        "mensaje": "Resultado procesado correctamente.",
-        "partida_id": partida.id,
-        "ganador": partida.ganador.nombre_mostrar if partida.ganador else None,
-        "torneo_estado": torneo.estado,
-    }), 200
+    return jsonify(
+        {
+            "mensaje": "Resultado procesado correctamente.",
+            "partida_id": partida.id,
+            "ganador": partida.ganador.nombre_mostrar if partida.ganador else None,
+            "torneo_estado": torneo.estado,
+        }
+    ), 200

@@ -1,18 +1,14 @@
 {% extends "base.html" %}
-{% block titulo %}Error{% endblock %}
+{% block titulo %}Error {{ codigo }}{% endblock %}
 {% block contenido %}
-{% set codigo = error.code if error else 500 %}
-{% set textos = {
-  400: 'La solicitud no es válida.',
-  403: 'No tenés permisos para ver esta página.',
-  404: 'La página que buscás no existe.',
-  405: 'Acción no permitida.',
-  500: 'Ocurrió un error inesperado. Intentá de nuevo en unos minutos.'} %}
 <div class="container">
   <div class="vacio error-pagina">
     <div class="error-codigo text-gradiente">{{ codigo }}</div>
-    <p class="lead">{{ error.description if error and codigo == 400 else textos.get(codigo, 'Ocurrió un error.') }}</p>
-    <a href="{{ url_for('main.index') }}" class="btn btn-gradiente"><i class="bi bi-house"></i> Volver al inicio</a>
+    <p class="lead">{{ mensaje }}</p>
+    <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+      <a href="{{ url_for('main.index') }}" class="btn btn-rojo"><i class="bi bi-house"></i> Volver al inicio</a>
+      <a href="{{ url_for('torneos.lista') }}" class="btn btn-fantasma"><i class="bi bi-trophy"></i> Ver torneos</a>
+    </div>
   </div>
 </div>
 {% endblock %}

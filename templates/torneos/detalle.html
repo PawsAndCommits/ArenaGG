@@ -1,6 +1,40 @@
 {% extends "base.html" %}
-{% from "_macros.html" import csrf, badge_estado %}
+{% from "_macros.html" import csrf, badge_estado, badge_partida, insignia %}
 {% block titulo %}{{ torneo.nombre }}{% endblock %}
+{% block main_attrs %}data-torneo-id="{{ torneo.id }}"{% endblock %}
+
+{% macro nombre_inscripcion(inscripcion) -%}
+  {% if inscripcion %}
+    {% if inscripcion.equipo %}
+      <a href="{{ url_for('equipos.detalle', equipo_id=inscripcion.equipo.id) }}" class="enlace-jugador">{{ inscripcion.nombre_mostrar }}</a>
+    {% else %}
+      <a href="{{ url_for('usuarios.jugador', usuario_id=inscripcion.usuario_id) }}" class="enlace-jugador">{{ inscripcion.nombre_mostrar }}</a>
+    {% endif %}
+  {% else %}
+    <span class="text-secundario">Por definir</span>
+  {% endif %}
+{%- endmacro %}
+
+{% macro fila_partida(partida) -%}
+  <div class="vs-fila">
+    <div class="d-flex align-items-center gap-2 min-w-0">
+      {{ insignia(partida.participante1) }}
+      <span class="vs-nombre {{ 'ganador' if partida.ganador_id and partida.ganador_id == partida.participante1_id }}">{{ partida.participante1.nombre_mostrar if partida.participante1 else 'Por definir' }}</span>
+    </div>
+    <div class="text-center">
+      {% if partida.resultado and partida.resultado.estado == 'confirmado' %}
+        <span class="marcador">{{ partida.resultado.puntaje1 }} - {{ partida.resultado.puntaje2 }}</span>
+      {% else %}
+        <span class="vs">VS</span>
+      {% endif %}
+    </div>
+    <div class="d-flex align-items-center justify-content-end gap-2 min-w-0 text-end">
+      <span class="vs-nombre {{ 'ganador' if partida.ganador_id and partida.ganador_id == partida.participante2_id }}">{{ partida.participante2.nombre_mostrar if partida.participante2 else 'Por definir' }}</span>
+      {{ insignia(partida.participante2) }}
+    </div>
+  </div>
+{%- endmacro %}
+
 {% block contenido %}
 {% set es_admin = current_user.is_authenticated and current_user.es_admin %}
 <div class="container">
@@ -10,30 +44,42 @@
         <div class="d-flex flex-wrap gap-2 mb-2">
           <span class="juego"><i class="bi bi-joystick"></i> {{ torneo.videojuego }}</span>
           {{ badge_estado(torneo.estado, torneo.estado_texto) }}
+          <span class="chip chip-sm"><i class="bi bi-collection-play"></i> {{ torneo.formato_texto }}</span>
           {% if torneo.destacado %}<span class="estado estado-destacado"><i class="bi bi-star-fill"></i> Destacado</span>{% endif %}
         </div>
         <h1 class="torneo-titulo">{{ torneo.nombre }}</h1>
         <div class="meta meta-grande">
           <span><i class="bi bi-calendar-event"></i> {{ torneo.fecha|fecha }}</span>
-          <span><i class="bi bi-{{ 'people' if torneo.es_por_equipos else 'person' }}"></i> {{ torneo.modalidad_texto }}{% if torneo.es_por_equipos %} ({{ torneo.jugadores_por_equipo }} por equipo){% endif %}</span>
+          <span><i class="bi bi-{{ 'people' if torneo.es_por_equipos else 'person' }}"></i> {{ torneo.modalidad_texto }}{% if torneo.es_por_equipos %} · {{ torneo.jugadores_por_equipo }} por equipo{% endif %}</span>
+          {% if torneo.premio %}<span><i class="bi bi-award"></i> {{ torneo.premio }}</span>{% endif %}
         </div>
-        <div class="cupo mt-3" style="max-width: 420px">
+        <div class="cupo mt-3" style="max-width: 460px">
           <div class="d-flex justify-content-between small mb-1">
             <span>{{ torneo.inscriptos }}/{{ torneo.cupo_maximo }} inscriptos</span>
-            <span class="{{ 'text-danger' if torneo.esta_completo else 'text-info' }}">{% if torneo.esta_completo %}Cupo completo{% else %}{{ torneo.cupos_disponibles }} cupos disponibles{% endif %}</span>
+            <span class="{{ 'text-danger' if torneo.esta_completo else 'text-rojo' }}">{% if torneo.esta_completo %}Cupo completo{% else %}{{ torneo.cupos_disponibles }} cupos disponibles{% endif %}</span>
           </div>
-          <div class="progress progress-fino"><div class="progress-bar barra-gradiente" style="width: {{ torneo.porcentaje_ocupado }}%"></div></div>
+          <div class="progress progress-fino"><div class="progress-bar barra-roja" style="width: {{ torneo.porcentaje_ocupado }}%"></div></div>
         </div>
       </div>
 
       <div class="col-lg-4">
         <div class="panel-accion">
           {% if mi_inscripcion %}
-            <div class="text-success fw-semibold mb-2"><i class="bi bi-check-circle-fill"></i> Estás inscripto{% if mi_inscripcion.nombre_equipo %} con «{{ mi_inscripcion.nombre_equipo }}»{% endif %}</div>
+            <div class="text-rojo fw-semibold mb-2"><i class="bi bi-check-circle-fill"></i> Estás inscripto{% if mi_inscripcion.nombre_equipo %} con «{{ mi_inscripcion.nombre_equipo }}»{% endif %}</div>
+            {% if mi_partida %}
+              <a class="btn btn-rojo w-100" href="{{ url_for('torneos.sala', torneo_id=torneo.id, partida_id=mi_partida.id) }}">
+                <i class="bi bi-controller"></i> Ir a mi partida
+              </a>
+              <div class="small text-secundario text-center mt-2">{{ mi_partida.nombre_ronda }} · Partida #{{ mi_partida.numero }}</div>
+            {% elif torneo.campeon and torneo.campeon.id == mi_inscripcion.id %}
+              <div class="text-center fw-semibold text-warning"><i class="bi bi-trophy-fill"></i> ¡Saliste campeón!</div>
+            {% else %}
+              <div class="small text-secundario text-center">No tenés partidas pendientes por ahora.</div>
+            {% endif %}
             {% if torneo.estado in ('proximamente', 'inscripciones_abiertas') %}
-            <form method="post" action="{{ url_for('torneos.cancelar', torneo_id=torneo.id) }}" data-confirmar="¿Seguro que querés cancelar tu inscripción?">
+            <form method="post" action="{{ url_for('torneos.cancelar', torneo_id=torneo.id) }}" class="mt-3" data-confirmar="¿Seguro que querés cancelar tu inscripción?">
               {{ csrf() }}
-              <button class="btn btn-outline-danger w-100" type="submit"><i class="bi bi-x-circle"></i> Cancelar inscripción</button>
+              <button class="btn btn-sm btn-fantasma w-100" type="submit"><i class="bi bi-x-circle"></i> Cancelar inscripción</button>
             </form>
             {% endif %}
           {% elif torneo.acepta_inscripciones %}
@@ -41,24 +87,29 @@
             <form method="post" action="{{ url_for('torneos.inscribirse', torneo_id=torneo.id) }}">
               {{ csrf() }}
               {% if torneo.es_por_equipos %}
-              <div class="mb-2">
-                <label class="form-label small" for="nombre_equipo">Nombre del equipo</label>
-                <input class="form-control" id="nombre_equipo" name="nombre_equipo" required maxlength="60">
-              </div>
-              <div class="mb-2">
-                <label class="form-label small" for="integrantes">Compañeros ({{ torneo.jugadores_por_equipo - 1 }}, separados por comas)</label>
-                <input class="form-control" id="integrantes" name="integrantes" required maxlength="255" placeholder="Nick1, Nick2">
-              </div>
+                {% if mis_equipos %}
+                <label class="form-label small" for="equipo_id">Tu equipo</label>
+                <select class="form-select mb-2" id="equipo_id" name="equipo_id" required>
+                  <option value="">Elegir equipo…</option>
+                  {% for equipo in mis_equipos %}
+                  <option value="{{ equipo.id }}">{{ equipo.nombre }} ({{ equipo.miembros_activos|length }}/{{ torneo.jugadores_por_equipo }})</option>
+                  {% endfor %}
+                </select>
+                <div class="small text-secundario mb-3">Solo aparecen los equipos con el roster completo.</div>
+                {% else %}
+                <div class="small text-secundario mb-3">Necesitás un equipo de {{ torneo.jugadores_por_equipo }} jugadores para inscribirte.</div>
+                <a class="btn btn-sm btn-fantasma w-100 mb-2" href="{{ url_for('equipos.nuevo') }}"><i class="bi bi-plus-lg"></i> Crear equipo</a>
+                {% endif %}
               {% endif %}
-              <button class="btn btn-gradiente btn-lg w-100" type="submit"><i class="bi bi-lightning-charge-fill"></i> Inscribirme</button>
+              <button class="btn btn-rojo btn-lg w-100" type="submit" {% if torneo.es_por_equipos and not mis_equipos %}disabled{% endif %}><i class="bi bi-lightning-charge-fill"></i> Inscribirme</button>
             </form>
             {% else %}
-            <a class="btn btn-gradiente btn-lg w-100" href="{{ url_for('usuarios.login', next=request.path) }}"><i class="bi bi-box-arrow-in-right"></i> Iniciá sesión para inscribirte</a>
+            <a class="btn btn-rojo btn-lg w-100" href="{{ url_for('usuarios.login', next=request.path) }}"><i class="bi bi-box-arrow-in-right"></i> Iniciá sesión para inscribirte</a>
             {% endif %}
           {% else %}
             <div class="text-secundario text-center"><i class="bi bi-lock"></i>
               {% if torneo.estado == 'inscripciones_abiertas' and torneo.esta_completo %}El torneo está completo.
-              {% elif torneo.estado == 'proximamente' %}Las inscripciones abrirán pronto.
+              {% elif torneo.estado == 'proximamente' %}Las inscripciones abren pronto.
               {% else %}Las inscripciones están cerradas.{% endif %}
             </div>
           {% endif %}
@@ -67,16 +118,22 @@
     </div>
 
     {% if es_admin %}
-    <div class="herramientas-admin mt-4 d-flex flex-wrap gap-2 align-items-center">
+    <div class="herramientas-admin mt-4">
       <span class="small text-secundario me-2"><i class="bi bi-shield-lock"></i> Administración:</span>
-      <a class="btn btn-sm btn-outline-light" href="{{ url_for('torneos.editar', torneo_id=torneo.id) }}"><i class="bi bi-pencil"></i> Editar</a>
+      <a class="btn btn-sm btn-fantasma" href="{{ url_for('torneos.editar', torneo_id=torneo.id) }}"><i class="bi bi-pencil"></i> Editar</a>
       {% if torneo.estado == 'inscripciones_abiertas' and torneo.inscriptos >= 2 %}
-      <form method="post" action="{{ url_for('torneos.iniciar', torneo_id=torneo.id) }}" class="d-inline" data-confirmar="¿Iniciar el torneo y generar los cruces de la primera ronda?">
+      <form method="post" action="{{ url_for('torneos.iniciar', torneo_id=torneo.id) }}" data-confirmar="¿Iniciar el torneo y generar los cruces?">
         {{ csrf() }}
-        <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-play-circle"></i> Iniciar Torneo</button>
+        <button class="btn btn-sm btn-rojo" type="submit"><i class="bi bi-play-circle"></i> Iniciar torneo</button>
       </form>
       {% endif %}
-      <form method="post" action="{{ url_for('torneos.eliminar', torneo_id=torneo.id) }}" class="d-inline" data-confirmar="¿Eliminar definitivamente el torneo «{{ torneo.nombre }}» con sus inscripciones?">
+      {% if torneo.tiene_partidas %}
+      <form method="post" action="{{ url_for('torneos.reiniciar', torneo_id=torneo.id) }}" data-confirmar="¿Borrar la llave y volver a inscripciones abiertas? Se pierden los resultados cargados.">
+        {{ csrf() }}
+        <button class="btn btn-sm btn-fantasma" type="submit"><i class="bi bi-arrow-counterclockwise"></i> Reiniciar llave</button>
+      </form>
+      {% endif %}
+      <form method="post" action="{{ url_for('torneos.eliminar', torneo_id=torneo.id) }}" data-confirmar="¿Eliminar definitivamente «{{ torneo.nombre }}» con sus inscripciones?">
         {{ csrf() }}
         <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-trash"></i> Eliminar</button>
       </form>
@@ -84,216 +141,222 @@
     {% endif %}
   </div>
 
-  <div class="row g-4 mb-4">
-    <div class="col-lg-5">
-      <div class="tarjeta h-100">
-        <h2 class="h5"><i class="bi bi-card-text"></i> Descripción</h2>
-        <p class="text-secundario mb-0" style="white-space: pre-line">{{ torneo.descripcion or 'Sin descripción.' }}</p>
+  {% if torneo.campeon %}
+  <div class="banner-campeon mb-4">
+    <i class="bi bi-trophy-fill"></i>
+    <div>
+      <div class="small text-secundario text-uppercase">Campeón del torneo</div>
+      <div class="banner-campeon-nombre">{{ torneo.campeon.nombre_mostrar }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <ul class="nav nav-tabs pestanas mb-3" role="tablist">
+    <li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-resumen" type="button" role="tab"><i class="bi bi-info-circle"></i> Resumen</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-participantes" type="button" role="tab"><i class="bi bi-people"></i> Participantes <span class="badge text-bg-rojo">{{ torneo.inscriptos }}</span></button></li>
+    {% if torneo.tiene_partidas %}
+    <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-partidas" type="button" role="tab"><i class="bi bi-list-check"></i> Partidas</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-posiciones" type="button" role="tab"><i class="bi bi-list-ol"></i> Posiciones</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-llave" type="button" role="tab"><i class="bi bi-diagram-3"></i> Llave</button></li>
+    {% endif %}
+  </ul>
+
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-resumen" role="tabpanel">
+      {% if mi_partida %}
+      <div class="mi-partida mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <span class="chip chip-sm chip-rojo"><i class="bi bi-broadcast"></i> Tu próxima partida</span>
+          {{ badge_partida(mi_partida) }}
+        </div>
+        <div class="mi-partida-vs">
+          <div class="d-flex align-items-center gap-2 min-w-0">
+            {{ insignia(mi_partida.participante1, 'escudo-sm') }}
+            <span class="mi-partida-nombre">{{ mi_partida.participante1.nombre_mostrar if mi_partida.participante1 else 'Por definir' }}</span>
+          </div>
+          <span class="vs">VS</span>
+          <div class="d-flex align-items-center justify-content-end gap-2 min-w-0 text-end">
+            <span class="mi-partida-nombre">{{ mi_partida.participante2.nombre_mostrar if mi_partida.participante2 else 'Por definir' }}</span>
+            {{ insignia(mi_partida.participante2, 'escudo-sm') }}
+          </div>
+        </div>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+          <span class="small text-secundario">{{ mi_partida.nombre_ronda }} · Partida #{{ mi_partida.numero }}{% if mi_partida.fecha_programada %} · {{ mi_partida.fecha_programada|fecha }}{% endif %}</span>
+          <a class="btn btn-sm btn-rojo" href="{{ url_for('torneos.sala', torneo_id=torneo.id, partida_id=mi_partida.id) }}">Entrar a la sala <i class="bi bi-arrow-right"></i></a>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="row g-4">
+        <div class="col-lg-7">
+          <div class="tarjeta h-100">
+            <h2 class="h5 mb-3"><i class="bi bi-card-text"></i> Sobre el torneo</h2>
+            <p class="text-secundario mb-4" style="white-space: pre-line">{{ torneo.descripcion or 'Sin descripción.' }}</p>
+            <h3 class="h6 text-uppercase text-secundario">Formato</h3>
+            <p class="mb-3">{{ torneo.formato_texto }} · eliminación directa{% if torneo.es_por_equipos %} · {{ torneo.jugadores_por_equipo }} jugadores por equipo{% endif %}</p>
+            {% if torneo.reglas %}
+            <h3 class="h6 text-uppercase text-secundario">Reglas</h3>
+            <p class="text-secundario mb-0" style="white-space: pre-line">{{ torneo.reglas }}</p>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="tarjeta h-100">
+            <h2 class="h5 mb-3"><i class="bi bi-trophy"></i> Premio</h2>
+            <p class="mb-4">{{ torneo.premio or 'A definir por la organización.' }}</p>
+            <h2 class="h5 mb-2"><i class="bi bi-clock-history"></i> Estado</h2>
+            <div class="d-flex flex-wrap gap-2">
+              {{ badge_estado(torneo.estado, torneo.estado_texto) }}
+              <span class="chip chip-sm">{{ torneo.inscriptos }} inscriptos</span>
+              {% if torneo.iniciado_en %}<span class="chip chip-sm">Inició {{ torneo.iniciado_en|fecha('%d/%m') }}</span>{% endif %}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="col-lg-7">
-      <div class="tarjeta h-100">
-        <h2 class="h5"><i class="bi bi-people"></i> Participantes <span class="badge text-bg-azul">{{ torneo.inscriptos }}</span></h2>
+
+    <div class="tab-pane fade" id="tab-participantes" role="tabpanel">
+      <div class="tarjeta">
         {% if torneo.inscripciones %}
-        <ol class="lista-participantes">
-          {% for insc in torneo.inscripciones %}
-          <li>
-            <span class="avatar avatar-sm">{{ insc.nombre_mostrar[0]|upper }}</span>
-            <div class="flex-grow-1">
-              <a href="{{ url_for('usuarios.jugador', usuario_id=insc.usuario_id) }}">{{ insc.nombre_mostrar }}</a>
-              {% if insc.nombre_equipo %}<div class="small text-secundario">Capitán: {{ insc.usuario.username }} · {{ insc.integrantes }}</div>{% endif %}
-            </div>
-            <span class="small text-secundario d-none d-sm-inline">{{ insc.creado_en|fecha('%d/%m %H:%M') }}</span>
-          </li>
-          {% endfor %}
-        </ol>
+        <div class="table-responsive">
+          <table class="table tabla-gamer align-middle mb-0">
+            <thead>
+              <tr><th>#</th><th>Participante</th>{% if torneo.es_por_equipos %}<th>Roster</th>{% endif %}<th>Inscripto</th></tr>
+            </thead>
+            <tbody>
+              {% for insc in torneo.inscripciones %}
+              <tr>
+                <td class="text-secundario">{{ loop.index }}</td>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    {{ insignia(insc) }}
+                    <div>
+                      {{ nombre_inscripcion(insc) }}
+                      {% if insc.nombre_equipo %}<div class="small text-secundario">Capitán: {{ insc.usuario.username }}</div>{% endif %}
+                    </div>
+                  </div>
+                </td>
+                {% if torneo.es_por_equipos %}
+                <td>
+                  <div class="roster-mini">
+                    {% for jugador in insc.roster %}<span>{{ jugador.username }}</span>{% endfor %}
+                  </div>
+                </td>
+                {% endif %}
+                <td class="small text-secundario">{{ insc.creado_en|fecha('%d/%m %H:%M') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
         {% else %}
-        <p class="text-secundario mb-0">Todavía no hay inscriptos. ¡Sé el primero!</p>
+        <div class="vacio"><i class="bi bi-person-plus"></i><p>Todavía no hay inscriptos. ¡Sé el primero!</p></div>
         {% endif %}
       </div>
     </div>
-  </div>
 
-  {% if torneo.tiene_partidas %}
-  <div class="tarjeta mb-4">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-      <div>
-        <h2 class="h5 mb-1"><i class="bi bi-diagram-3"></i> Bracket / Llaves</h2>
-        <p class="text-secundario mb-0 small">Carga de resultados y avance automático de ganadores</p>
+    {% if torneo.tiene_partidas %}
+    <div class="tab-pane fade" id="tab-partidas" role="tabpanel">
+      <div class="tarjeta p-0 overflow-hidden">
+        <div class="table-responsive">
+          <table class="table tabla-gamer align-middle mb-0">
+            <thead>
+              <tr><th>Ronda</th><th>#</th><th>Partida</th><th class="text-center">Marcador</th><th>Estado</th><th>Horario</th><th></th></tr>
+            </thead>
+            <tbody>
+              {% for partida in partidas %}
+              <tr>
+                <td class="small text-secundario">{{ partida.nombre_ronda }}</td>
+                <td class="text-secundario">{{ partida.numero }}</td>
+                <td style="min-width: 280px">{{ fila_partida(partida) }}</td>
+                <td class="text-center">
+                  {% if partida.resultado %}<span class="marcador">{{ partida.resultado.puntaje1 }} - {{ partida.resultado.puntaje2 }}</span>{% else %}<span class="text-secundario">—</span>{% endif %}
+                </td>
+                <td>{{ badge_partida(partida) }}</td>
+                <td class="small text-secundario">{{ partida.fecha_programada|fecha('%d/%m %H:%M') }}</td>
+                <td class="text-end"><a class="btn btn-sm btn-fantasma" href="{{ url_for('torneos.sala', torneo_id=torneo.id, partida_id=partida.id) }}">Sala <i class="bi bi-arrow-right"></i></a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-      {% if torneo.campeon %}
-      <span class="badge text-bg-warning px-3 py-2"><i class="bi bi-trophy"></i> Campeón: {{ torneo.campeon.nombre_mostrar }}</span>
-      {% endif %}
     </div>
-    {% set rondas = {} %}
-    {% for p in partidas %}
-      {% if rondas.update({p.ronda: (rondas.get(p.ronda, []) + [p])}) %}{% endif %}
-    {% endfor %}
-    <div class="d-flex flex-column gap-4">
-      {% for ronda_num in rondas.keys()|sort %}
-      {% set lista_ronda = rondas[ronda_num]|sort(attribute='numero') %}
-      <div>
-        <div class="small text-secundario mb-2">{{ lista_ronda[0].nombre_ronda if lista_ronda else 'Ronda ' ~ ronda_num }}</div>
-        <div class="row g-3">
-          {% for partida in lista_ronda %}
-          {% set asignacion = partida.asignacion_partida %}
-          {% set es_participante = current_user.is_authenticated and ((partida.participante1 and partida.participante1.usuario_id == current_user.id) or (partida.participante2 and partida.participante2.usuario_id == current_user.id)) %}
-          {% set puede_cargar = es_admin or es_participante %}
-          <div class="col-md-6 col-lg-4">
-            <div class="bracket-partida">
-              <div class="bracket-header d-flex justify-content-between">
-                <span>Partida #{{ partida.numero }}</span>
-                <span class="text-capitalize">{{ partida.estado }}</span>
-              </div>
-              <div class="bracket-body">
-                <div class="bracket-jugador {{ 'ganador' if partida.ganador_id and partida.ganador_id == partida.participante1_id else '' }}">
-                  <span>{{ partida.participante1.nombre_mostrar if partida.participante1 else 'BYE / Por definir' }}</span>
-                  {% if partida.resultado %}<span class="puntaje">{{ partida.resultado.puntaje1 }}</span>{% endif %}
-                </div>
-                <div class="bracket-vs">VS</div>
-                <div class="bracket-jugador {{ 'ganador' if partida.ganador_id and partida.ganador_id == partida.participante2_id else '' }}">
-                  <span>{{ partida.participante2.nombre_mostrar if partida.participante2 else 'BYE / Por definir' }}</span>
-                  {% if partida.resultado %}<span class="puntaje">{{ partida.resultado.puntaje2 }}</span>{% endif %}
-                </div>
-              </div>
 
-              {% if asignacion and asignacion.servidor %}
-              <div class="bracket-footer">
-                <div class="small text-info mb-2">
-                  <i class="bi bi-hdd-network"></i> {{ asignacion.servidor.nombre }} · {{ asignacion.servidor.ip }}:{{ asignacion.servidor.puerto }}
-                </div>
-                {% if es_admin or es_participante %}
-                <a class="btn btn-sm btn-outline-info w-100 mb-2" href="steam://connect/{{ asignacion.servidor.ip }}:{{ asignacion.servidor.puerto }}">
-                  <i class="bi bi-controller"></i> Conectar al servidor
-                </a>
-                {% endif %}
-                {% if es_admin %}
-                <form method="post" action="{{ url_for('torneos.quitar_servidor', torneo_id=torneo.id, partida_id=partida.id) }}" data-confirmar="¿Liberar el servidor de esta partida?">
-                  {{ csrf() }}
-                  <button class="btn btn-sm btn-outline-danger w-100" type="submit"><i class="bi bi-x-circle"></i> Liberar servidor</button>
-                </form>
-                {% endif %}
-              </div>
-              {% elif es_admin and partida.estado == 'pendiente' and partida.participante1_id and partida.participante2_id and servidores_disponibles %}
-              <div class="bracket-footer">
-                <form method="post" action="{{ url_for('torneos.asignar_servidor', torneo_id=torneo.id, partida_id=partida.id) }}">
-                  {{ csrf() }}
-                  <select class="form-select form-select-sm mb-2" name="servidor_id" required>
-                    <option value="">Elegir servidor…</option>
-                    {% for servidor in servidores_disponibles %}
-                    <option value="{{ servidor.id }}">{{ servidor.nombre }} ({{ servidor.ip }}:{{ servidor.puerto }})</option>
-                    {% endfor %}
-                  </select>
-                  <button class="btn btn-sm btn-outline-info w-100" type="submit"><i class="bi bi-hdd-rack"></i> Asignar servidor + RCON</button>
-                </form>
-              </div>
-              {% elif es_admin and partida.estado == 'pendiente' and not servidores_disponibles %}
-              <div class="bracket-footer small text-secundario">
-                No hay servidores cargados. Creá uno con <code>flask --app app crear-servidor</code>.
-              </div>
-              {% endif %}
+    <div class="tab-pane fade" id="tab-posiciones" role="tabpanel">
+      <div class="tarjeta p-0 overflow-hidden">
+        <div class="p-3 border-bottom border-secondary-subtle d-flex justify-content-between align-items-center">
+          <h2 class="h5 mb-0"><i class="bi bi-list-ol"></i> Tabla de posiciones</h2>
+          <span class="small text-secundario">Victorias, diferencia de mapas y racha</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table tabla-gamer align-middle mb-0">
+            <thead>
+              <tr><th>#</th><th>Participante</th><th class="text-center">PJ</th><th class="text-center">G</th><th class="text-center">P</th><th class="text-center">Mapas</th><th class="text-center">Dif.</th><th class="text-center">Winrate</th><th>Racha</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+              {% for fila in posiciones %}
+              <tr>
+                <td><span class="puesto {% if fila.posicion <= 3 %}puesto-{{ fila.posicion }}{% endif %}">{{ fila.posicion }}</span></td>
+                <td>
+                  <div class="fw-semibold">{{ fila.nombre }}</div>
+                  {% if fila.equipo %}<div class="small text-secundario">{{ fila.equipo }}</div>{% endif %}
+                </td>
+                <td class="text-center">{{ fila.partidas_jugadas }}</td>
+                <td class="text-center text-rojo fw-semibold">{{ fila.victorias }}</td>
+                <td class="text-center">{{ fila.derrotas }}</td>
+                <td class="text-center small">{{ fila.mapas_favor }}-{{ fila.mapas_contra }}</td>
+                <td class="text-center">{{ '%+d'|format(fila.diferencia) }}</td>
+                <td class="text-center">{{ fila.winrate }}%</td>
+                <td>
+                  <span class="racha">
+                    {% for letra in fila.ultimos %}<span class="{{ 'g' if letra == 'G' else 'p' }}">{{ letra }}</span>{% endfor %}
+                    {% if not fila.ultimos %}<span class="text-secundario small">—</span>{% endif %}
+                  </span>
+                </td>
+                <td class="small {% if fila.estado == 'Campeón' %}text-warning{% elif fila.estado == 'Eliminado' %}text-secundario{% else %}text-rojo{% endif %}">{{ fila.estado }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
-              {% if puede_cargar and partida.estado == 'pendiente' and partida.participante1_id and partida.participante2_id %}
-              <div class="bracket-footer">
-                <button class="btn btn-sm btn-gradiente w-100" data-bs-toggle="modal" data-bs-target="#modalResultado" data-partida="{{ partida.id }}" data-p1="{{ partida.participante1.nombre_mostrar }}" data-p2="{{ partida.participante2.nombre_mostrar }}"><i class="bi bi-clipboard-check"></i> Cargar resultado</button>
-              </div>
-              {% endif %}
+    <div class="tab-pane fade" id="tab-llave" role="tabpanel">
+      <div class="tarjeta">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <h2 class="h5 mb-0"><i class="bi bi-diagram-3"></i> Llave del torneo</h2>
+          <span class="small text-secundario">Deslizá para ver todas las rondas</span>
+        </div>
+        <div class="bracket-tablero">
+          {% for ronda, lista in partidas|groupby('ronda') %}
+          <div class="bracket-columna">
+            <div class="bracket-columna-titulo">{{ lista[0].nombre_ronda }}</div>
+            <div class="bracket-lista">
+              {% for partida in lista|sort(attribute='numero') %}
+              <a class="bracket-carta" href="{{ url_for('torneos.sala', torneo_id=torneo.id, partida_id=partida.id) }}">
+                <div class="bracket-carta-top">
+                  <span>Partida #{{ partida.numero }}</span>
+                  {{ badge_partida(partida) }}
+                </div>
+                <div class="bracket-equipo {{ 'ganador' if partida.ganador_id and partida.ganador_id == partida.participante1_id }}">
+                  <span class="text-truncate">{{ partida.participante1.nombre_mostrar if partida.participante1 else 'Por definir' }}</span>
+                  {% if partida.resultado %}<span class="marcador">{{ partida.resultado.puntaje1 }}</span>{% endif %}
+                </div>
+                <div class="bracket-equipo {{ 'ganador' if partida.ganador_id and partida.ganador_id == partida.participante2_id }}">
+                  <span class="text-truncate">{{ partida.participante2.nombre_mostrar if partida.participante2 else 'Por definir' }}</span>
+                  {% if partida.resultado %}<span class="marcador">{{ partida.resultado.puntaje2 }}</span>{% endif %}
+                </div>
+              </a>
+              {% endfor %}
             </div>
           </div>
           {% endfor %}
         </div>
       </div>
-      {% endfor %}
     </div>
+    {% endif %}
   </div>
-
-  {% if posiciones %}
-  <div class="tarjeta mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h2 class="h5 mb-0"><i class="bi bi-list-ol"></i> Tabla de posiciones</h2>
-      <span class="text-secundario small">Ordenado por victorias</span>
-    </div>
-    <div class="table-responsive">
-      <table class="table tabla-gamer align-middle mb-0">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Participante</th>
-            <th class="text-center">Jugadas</th>
-            <th class="text-center">Ganadas</th>
-            <th class="text-center">Perdidas</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for fila in posiciones %}
-          <tr>
-            <td class="fw-semibold">{{ fila.posicion }}</td>
-            <td>
-              <div class="d-flex align-items-center gap-2">
-                <span class="avatar avatar-sm">{{ fila.nombre[0]|upper }}</span>
-                <span>{{ fila.nombre }}</span>
-              </div>
-            </td>
-            <td class="text-center">{{ fila.partidas_jugadas }}</td>
-            <td class="text-center"><span class="badge text-bg-success">{{ fila.victorias }}</span></td>
-            <td class="text-center"><span class="badge text-bg-secondary">{{ fila.derrotas }}</span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
-
-  <div class="modal fade" id="modalResultado" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <form method="post" id="formResultado">
-          {{ csrf() }}
-          <div class="modal-header">
-            <h5 class="modal-title"><i class="bi bi-clipboard-data"></i> Cargar puntajes</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-          </div>
-          <div class="modal-body">
-            <div class="d-flex justify-content-between mb-3">
-              <div class="text-center flex-fill">
-                <div class="fw-semibold" id="lblP1">Jugador 1</div>
-                <input class="form-control mt-2" type="number" min="0" name="puntaje1" required>
-              </div>
-              <div class="px-3 d-flex align-items-center">-</div>
-              <div class="text-center flex-fill">
-                <div class="fw-semibold" id="lblP2">Jugador 2</div>
-                <input class="form-control mt-2" type="number" min="0" name="puntaje2" required>
-              </div>
-            </div>
-            <div class="small text-secundario">No puede haber empate. Al confirmar, el ganador avanza automáticamente a la siguiente fase.</div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancelar</button>
-            <button type="submit" class="btn btn-gradiente">Guardar resultado</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-  {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  const modalResultado = document.getElementById('modalResultado');
-  if (modalResultado) {
-    modalResultado.addEventListener('show.bs.modal', event => {
-      const button = event.relatedTarget;
-      const partidaId = button.getAttribute('data-partida');
-      const p1 = button.getAttribute('data-p1');
-      const p2 = button.getAttribute('data-p2');
-      document.getElementById('lblP1').textContent = p1 || 'Jugador 1';
-      document.getElementById('lblP2').textContent = p2 || 'Jugador 2';
-      const form = document.getElementById('formResultado');
-      form.action = '/torneos/{{ torneo.id }}/partidas/' + partidaId + '/resultado';
-    });
-  }
-</script>
 {% endblock %}

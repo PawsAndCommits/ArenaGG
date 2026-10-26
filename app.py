@@ -5,14 +5,24 @@ import sqlite3
 
 import click
 from dotenv import load_dotenv
-from flask import Flask, flash, jsonify, redirect, render_template, request
-from flask_login import LoginManager
+from flask import Flask, flash, jsonify, render_template, request
+from flask_login import LoginManager, current_user
+from flask_socketio import join_room, leave_room
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from werkzeug.exceptions import HTTPException
 
+import migraciones
 from extensiones import socketio
-from models import ESTADOS_TORNEO, MODALIDADES, Usuario, db
+from models import (
+    ESTADOS_TORNEO,
+    FORMATOS,
+    MODALIDADES,
+    Notificacion,
+    Torneo,
+    Usuario,
+    db,
+)
 from routes import registrar_blueprints
 from seguridad import csrf_token, verificar_csrf
 from services import ErrorNegocio, registrar_usuario
@@ -30,7 +40,6 @@ def cargar_usuario(usuario_id):
 
 @event.listens_for(Engine, "connect")
 def activar_claves_foraneas(conexion, _registro):
-    """SQLite necesita activar las claves foráneas en cada conexión."""
     if isinstance(conexion, sqlite3.Connection):
         cursor = conexion.cursor()
         cursor.execute("PRAGMA foreign_keys = ON")
@@ -38,13 +47,19 @@ def activar_claves_foraneas(conexion, _registro):
 
 
 def _clave_secreta(carpeta):
-    """Guarda la clave secreta en instance/ para no regenerarla en cada arranque."""
     ruta = os.path.join(carpeta, "secret_key.txt")
     if not os.path.exists(ruta):
         with open(ruta, "w", encoding="utf-8") as archivo:
             archivo.write(secrets.token_hex(32))
     with open(ruta, encoding="utf-8") as archivo:
         return archivo.read().strip()
+
+
+def _entorno_booleano(nombre, por_defecto=False):
+    valor = os.environ.get(nombre)
+    if valor is None:
+        return por_defecto
+    return valor.strip().lower() in ("1", "true", "si", "sí", "yes", "on")
 
 
 CARPETA_PROYECTO = os.path.dirname(os.path.abspath(__file__))
@@ -56,13 +71,16 @@ def create_app(config=None):
     os.makedirs(app.instance_path, exist_ok=True)
     app.config.update(
         SECRET_KEY=os.environ.get("SECRET_KEY") or _clave_secreta(app.instance_path),
-        SQLALCHEMY_DATABASE_URI="sqlite:///" + os.path.join(app.instance_path, "torneos.db"),
+        SQLALCHEMY_DATABASE_URI=os.environ.get("DATABASE_URL")
+        or "sqlite:///" + os.path.join(app.instance_path, "torneos.db"),
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         TOKEN_EXPIRACION_SEGUNDOS=8 * 60 * 60,
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         STEAM_API_KEY=os.environ.get("STEAM_API_KEY", ""),
         CS2_WEBHOOK_SECRET=os.environ.get("CS2_WEBHOOK_SECRET", ""),
+        MODO_SERVIDORES=_entorno_booleano("MODO_SERVIDORES"),
+        CSRF_ENABLED=True,
     )
     if config:
         app.config.update(config)
@@ -71,18 +89,40 @@ def create_app(config=None):
 
     db.init_app(app)
     login_manager.init_app(app)
-    socketio.init_app(app, cors_allowed_origins="*")
+    opciones_socket = {}
+    if os.environ.get("SOCKETIO_ORIGINS"):
+        opciones_socket["cors_allowed_origins"] = os.environ["SOCKETIO_ORIGINS"]
+    socketio.init_app(app, **opciones_socket)
     registrar_blueprints(app)
 
     with app.app_context():
         db.create_all()
+        migraciones.aplicar()
 
     app.before_request(verificar_csrf)
     app.jinja_env.globals["csrf_token"] = csrf_token
 
     @app.context_processor
     def variables_globales():
-        return {"ESTADOS_TORNEO": ESTADOS_TORNEO, "MODALIDADES": MODALIDADES}
+        datos = {
+            "ESTADOS_TORNEO": ESTADOS_TORNEO,
+            "MODALIDADES": MODALIDADES,
+            "FORMATOS": FORMATOS,
+            "modo_servidores": app.config["MODO_SERVIDORES"],
+            "notificaciones_sin_leer": 0,
+            "notificaciones_recientes": [],
+        }
+        if current_user.is_authenticated:
+            datos["notificaciones_sin_leer"] = Notificacion.query.filter_by(
+                usuario_id=current_user.id, leida=False
+            ).count()
+            datos["notificaciones_recientes"] = (
+                Notificacion.query.filter_by(usuario_id=current_user.id)
+                .order_by(Notificacion.creada_en.desc())
+                .limit(5)
+                .all()
+            )
+        return datos
 
     @app.template_filter("fecha")
     def formato_fecha(valor, formato="%d/%m/%Y %H:%M"):
@@ -97,6 +137,37 @@ def create_app(config=None):
     return app
 
 
+@socketio.on("connect")
+def socket_conectar():
+    if current_user.is_authenticated:
+        join_room(f"user:{current_user.id}")
+    join_room("publico")
+
+
+@socketio.on("unirse_torneo")
+def socket_unirse_torneo(datos):
+    torneo_id = None
+    if isinstance(datos, dict):
+        torneo_id = datos.get("torneo_id")
+    try:
+        torneo_id = int(torneo_id)
+    except (TypeError, ValueError):
+        return
+    if db.session.get(Torneo, torneo_id):
+        join_room(f"torneo:{torneo_id}")
+
+
+@socketio.on("salir_torneo")
+def socket_salir_torneo(datos):
+    torneo_id = None
+    if isinstance(datos, dict):
+        torneo_id = datos.get("torneo_id")
+    try:
+        leave_room(f"torneo:{int(torneo_id)}")
+    except (TypeError, ValueError):
+        return
+
+
 def _registrar_errores(app):
     @app.errorhandler(ErrorNegocio)
     def error_negocio(error):
@@ -106,23 +177,26 @@ def _registrar_errores(app):
             if error.errores:
                 cuerpo["detalles"] = error.errores
             return jsonify(cuerpo), error.codigo
-        flash(error.mensaje, "danger")
-        for mensaje in error.errores.values():
-            flash(mensaje, "danger")
-        return redirect(request.referrer or "/")
+        detalle = error.mensaje
+        if error.errores:
+            detalle = " ".join(error.errores.values())
+        return render_template("error.html", codigo=error.codigo, mensaje=detalle), error.codigo
 
     @app.errorhandler(HTTPException)
     def error_http(error):
+        mensajes = {
+            400: "La solicitud no es válida.",
+            401: "No autenticado.",
+            403: "No tenés permisos para esta operación.",
+            404: "Recurso no encontrado.",
+            405: "Método HTTP no permitido para esta ruta.",
+        }
+        mensaje = error.description if error.code == 400 else mensajes.get(
+            error.code, error.description
+        )
         if request.path.startswith("/api/"):
-            mensajes = {
-                401: "No autenticado.",
-                403: "No tenés permisos para esta operación.",
-                404: "Recurso no encontrado.",
-                405: "Método HTTP no permitido para esta ruta.",
-            }
-            mensaje = error.description if error.code == 400 else mensajes.get(error.code, error.description)
             return jsonify({"error": mensaje}), error.code
-        return render_template("error.html", error=error), error.code
+        return render_template("error.html", codigo=error.code, mensaje=mensaje), error.code
 
     @app.errorhandler(Exception)
     def error_inesperado(error):
@@ -130,22 +204,30 @@ def _registrar_errores(app):
         app.logger.exception(error)
         if request.path.startswith("/api/"):
             return jsonify({"error": "Error interno del servidor."}), 500
-        return render_template("error.html", error=None), 500
+        return render_template(
+            "error.html",
+            codigo=500,
+            mensaje="Ocurrió un error inesperado. Intentá de nuevo en unos minutos.",
+        ), 500
 
 
 def _registrar_comandos(app):
     @app.cli.command("init-db")
     def init_db():
-        """Crea (si no existen) las tablas de instance/torneos.db."""
         db.create_all()
+        migraciones.aplicar()
         click.echo(f"Base de datos lista en {app.config['SQLALCHEMY_DATABASE_URI']}")
+
+    @app.cli.command("migrar")
+    def migrar():
+        migraciones.aplicar()
+        click.echo("Migración aplicada.")
 
     @app.cli.command("crear-admin")
     @click.option("--username", prompt="Nombre de usuario")
     @click.option("--email", prompt="Correo electrónico")
     @click.option("--password", prompt="Contraseña", hide_input=True, confirmation_prompt=True)
     def crear_admin(username, email, password):
-        """Crea un usuario administrador (o asciende uno existente)."""
         existente = Usuario.query.filter_by(username=username).first()
         if existente:
             existente.rol = "admin"
@@ -153,7 +235,9 @@ def _registrar_comandos(app):
             click.echo(f"El usuario '{username}' ahora es administrador.")
             return
         try:
-            registrar_usuario({"username": username, "email": email, "password": password}, rol="admin")
+            registrar_usuario(
+                {"username": username, "email": email, "password": password}, rol="admin"
+            )
         except ErrorNegocio as error:
             for mensaje in error.errores.values() or [error.mensaje]:
                 click.echo(f"Error: {mensaje}", err=True)
@@ -166,7 +250,6 @@ def _registrar_comandos(app):
     @click.option("--puerto", prompt="Puerto RCON", default=27015, type=int)
     @click.option("--rcon-password", prompt="Contraseña RCON", hide_input=True)
     def crear_servidor(nombre, ip, puerto, rcon_password):
-        """Registra un servidor dedicado de CS2 para asignar a las partidas."""
         from models import ServidorCS2
 
         servidor = ServidorCS2(
@@ -180,4 +263,4 @@ def _registrar_comandos(app):
 app = create_app()
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True)
+    socketio.run(app, debug=_entorno_booleano("FLASK_DEBUG"))
